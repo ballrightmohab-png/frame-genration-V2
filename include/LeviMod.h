@@ -49,6 +49,8 @@ namespace LeviMod {
         PluginMain() = default;
         ~PluginMain() = default;
 
+        void registerModMenuModule();
+
         ModConfig m_config;
         std::string m_configPath = "config.ini";
         bool m_initialized = false;

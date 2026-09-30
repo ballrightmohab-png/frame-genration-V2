@@ -51,6 +51,7 @@ add_executable(levi_mod_runner
     "src/framegen/FrameGenEngine.cpp"
     "src/math/MatrixMath.cpp"
     "src/gui/ModMenu.cpp"
+    "src/pl/ModMenu.cpp"
 )
 target_include_directories(levi_mod_runner PRIVATE include)
 
@@ -60,6 +61,6 @@ file(GLOB_RECURSE TEST_SOURCES
 )
 
 if (TEST_SOURCES)
-    add_executable(mod_tests ${TEST_SOURCES} "src/camera/CameraSmoothing.cpp" "src/framegen/FrameGenEngine.cpp" "src/math/MatrixMath.cpp" "src/LeviMod.cpp" "src/gui/ModMenu.cpp")
+    add_executable(mod_tests ${TEST_SOURCES} "src/camera/CameraSmoothing.cpp" "src/framegen/FrameGenEngine.cpp" "src/math/MatrixMath.cpp" "src/LeviMod.cpp" "src/gui/ModMenu.cpp" "src/pl/ModMenu.cpp")
     target_include_directories(mod_tests PRIVATE include)
 endif()
