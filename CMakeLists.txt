@@ -11,6 +11,10 @@ file(GLOB_RECURSE SOURCES
     "src/*.c"
 )
 
+# Exclude test_mod.cpp and main.cpp from shared library target
+list(FILTER SOURCES EXCLUDE REGEX "tests/.*")
+list(FILTER SOURCES EXCLUDE REGEX "src/main.cpp")
+
 file(GLOB_RECURSE HEADERS
     "include/*.h"
     "include/*.hpp"
@@ -29,12 +33,23 @@ target_compile_definitions(LeviFrameGenSmooth PRIVATE
     BUILDING_LEVI_MOD
 )
 
+# Build main mod executable runner
+add_executable(levi_mod_runner
+    "src/main.cpp"
+    "src/LeviMod.cpp"
+    "src/camera/CameraSmoothing.cpp"
+    "src/framegen/FrameGenEngine.cpp"
+    "src/math/MatrixMath.cpp"
+    "src/gui/ModMenu.cpp"
+)
+target_include_directories(levi_mod_runner PRIVATE include)
+
 # Build standalone test executable for physics & shader reprojection verification
 file(GLOB_RECURSE TEST_SOURCES
     "tests/*.cpp"
 )
 
 if (TEST_SOURCES)
-    add_executable(mod_tests ${TEST_SOURCES} "src/camera/CameraSmoothing.cpp" "src/framegen/FrameGenEngine.cpp" "src/math/MatrixMath.cpp")
+    add_executable(mod_tests ${TEST_SOURCES} "src/camera/CameraSmoothing.cpp" "src/framegen/FrameGenEngine.cpp" "src/math/MatrixMath.cpp" "src/LeviMod.cpp" "src/gui/ModMenu.cpp")
     target_include_directories(mod_tests PRIVATE include)
 endif()
