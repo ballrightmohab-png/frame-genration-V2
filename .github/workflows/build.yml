@@ -1,4 +1,4 @@
-name: Build & Package LeviFrameGenSmooth .levipack
+name: Build & Release LeviFrameGenSmooth (.levipack)
 
 on:
   push:
@@ -25,10 +25,10 @@ jobs:
           cd build
           cmake -DCMAKE_BUILD_TYPE=Release ..
 
-      - name: Build Mod & levipack Package
+      - name: Build Mod (.levipack) & Test Suite
         run: |
           cd build
-          make -j$(nproc) levipack levi_mod_runner mod_tests
+          make -j$(nproc) levipack mod_tests
 
       - name: Run Mod Test Suite
         run: |
@@ -38,5 +38,5 @@ jobs:
       - name: Upload .levipack Mod Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: LeviFrameGenSmooth-ModPack
+          name: LeviFrameGenSmooth.levipack
           path: build/LeviFrameGenSmooth.levipack
