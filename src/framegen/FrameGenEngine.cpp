@@ -10,6 +10,8 @@ namespace LeviMod {
     }
 
     void FrameGenEngine::resize(int width, int height) {
+        if (m_width == width && m_height == height && m_prevFrame.colorBuffer.size() > 0) return;
+
         m_width = width;
         m_height = height;
 
@@ -36,20 +38,34 @@ namespace LeviMod {
         size_t colorSize = static_cast<size_t>(m_width * m_height * 4);
         size_t depthSize = static_cast<size_t>(m_width * m_height);
 
-        // Cycle frame buffers
+        // Swap buffer pointers rather than copy vector allocations for zero-copy efficiency
         if (m_hasCurrFrame) {
-            m_prevFrame = m_currFrame;
+            std::swap(m_prevFrame.colorBuffer, m_currFrame.colorBuffer);
+            std::swap(m_prevFrame.depthBuffer, m_currFrame.depthBuffer);
+            m_prevFrame.viewProjMatrix = m_currFrame.viewProjMatrix;
+            m_prevFrame.width = m_currFrame.width;
+            m_prevFrame.height = m_currFrame.height;
             m_hasPrevFrame = true;
         }
 
         m_currFrame.width = m_width;
         m_currFrame.height = m_height;
+        if (m_currFrame.colorBuffer.size() != colorSize) {
+            m_currFrame.colorBuffer.resize(colorSize);
+        }
         std::memcpy(m_currFrame.colorBuffer.data(), colorPixels, colorSize);
 
         if (depthPixels) {
+            if (m_currFrame.depthBuffer.size() != depthSize) {
+                m_currFrame.depthBuffer.resize(depthSize);
+            }
             std::memcpy(m_currFrame.depthBuffer.data(), depthPixels, depthSize * sizeof(float));
         } else {
-            std::fill(m_currFrame.depthBuffer.begin(), m_currFrame.depthBuffer.end(), 0.5f);
+            if (m_currFrame.depthBuffer.size() != depthSize) {
+                m_currFrame.depthBuffer.resize(depthSize, 0.5f);
+            } else {
+                std::fill(m_currFrame.depthBuffer.begin(), m_currFrame.depthBuffer.end(), 0.5f);
+            }
         }
 
         m_currFrame.viewProjMatrix = viewProjMatrix;
@@ -60,7 +76,9 @@ namespace LeviMod {
         if (!isReady()) return false;
 
         size_t colorSize = static_cast<size_t>(m_width * m_height * 4);
-        outputColorBuffer.resize(colorSize);
+        if (outputColorBuffer.size() != colorSize) {
+            outputColorBuffer.resize(colorSize);
+        }
 
         Mat4 prevInvViewProj = m_prevFrame.viewProjMatrix.inverse();
         const Mat4& currViewProj = m_currFrame.viewProjMatrix;
@@ -69,11 +87,15 @@ namespace LeviMod {
         const uint8_t* currColor = m_currFrame.colorBuffer.data();
         const float* depthBuf = m_currFrame.depthBuffer.data();
 
-        // Perform spatial-temporal reprojection motion interpolation
+        float invWidth = 1.0f / static_cast<float>(m_width);
+        float invHeight = 1.0f / static_cast<float>(m_height);
+
+        // Perform parallelized/optimized spatial-temporal reprojection motion interpolation
+        #pragma omp parallel for collapse(2) if(m_width * m_height >= 10000)
         for (int y = 0; y < m_height; ++y) {
-            float v = (static_cast<float>(y) + 0.5f) / static_cast<float>(m_height);
             for (int x = 0; x < m_width; ++x) {
-                float u = (static_cast<float>(x) + 0.5f) / static_cast<float>(m_width);
+                float v = (static_cast<float>(y) + 0.5f) * invHeight;
+                float u = (static_cast<float>(x) + 0.5f) * invWidth;
                 int pixelIdx = y * m_width + x;
 
                 float depth = depthBuf[pixelIdx];

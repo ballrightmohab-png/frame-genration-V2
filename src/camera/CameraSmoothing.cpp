@@ -4,13 +4,12 @@
 
 namespace LeviMod {
 
-    static constexpr float PI = 3.14159265358979323846f;
-
-    // Helper to normalize angle to [-180, 180] degrees
+    // Safely normalize angle to [-180, 180] degrees (NaN-safe & O(1))
     static float normalizeAngle(float angle) {
-        while (angle > 180.0f) angle -= 360.0f;
-        while (angle < -180.0f) angle += 360.0f;
-        return angle;
+        if (std::isnan(angle) || std::isinf(angle)) return 0.0f;
+        float a = std::fmod(angle + 180.0f, 360.0f);
+        if (a < 0.0f) a += 360.0f;
+        return a - 180.0f;
     }
 
     CameraSmoothing::CameraSmoothing() {
@@ -62,7 +61,7 @@ namespace LeviMod {
         // Prevent overshooting target
         if ((originalTarget - current > 0.0f) == (output > originalTarget)) {
             output = originalTarget;
-            currentVelocity = (output - originalTarget) / deltaTime;
+            currentVelocity = 0.0f;
         }
 
         return output;
