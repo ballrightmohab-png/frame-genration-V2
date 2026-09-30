@@ -1,4 +1,5 @@
 #include "gui/ModMenu.h"
+#include "FrameGenMod.hpp"
 #include <iostream>
 #include <iomanip>
 
@@ -9,49 +10,51 @@ namespace LeviMod {
     }
 
     void ModMenu::setupMenuItems() {
-        auto& config = PluginMain::getInstance().getConfig();
+        auto& runtime = FrameGenMod::getInstance().getRuntime();
 
         m_items = {
             {
                 "Frame Generation",
                 "Toggle motion reprojection frame generation",
-                [&config]() { return config.frameGenEnabled ? "[ ON ]" : "[ OFF ]"; },
-                [&config]() { config.frameGenEnabled = !config.frameGenEnabled; }
+                [&runtime]() { return runtime.frameGenerationEnabled.load() ? "[ ON ]" : "[ OFF ]"; },
+                [&runtime]() { runtime.frameGenerationEnabled.store(!runtime.frameGenerationEnabled.load()); }
             },
             {
-                "Frame Multiplier",
-                "Target FPS multiplier ratio",
-                [&config]() { return std::to_string(config.frameMultiplier) + "x"; },
-                [&config]() {
-                    config.frameMultiplier = (config.frameMultiplier >= 3) ? 2 : config.frameMultiplier + 1;
+                "Frame Generation Mode",
+                "0 = Off, 1 = 1x (Interpolated), 2 = 2x",
+                [&runtime]() { return std::to_string(runtime.frameGenerationMode.load()) + "x"; },
+                [&runtime]() {
+                    int mode = runtime.frameGenerationMode.load();
+                    runtime.frameGenerationMode.store((mode + 1) % 3);
                 }
             },
             {
                 "Camera Smoothing",
                 "Critically damped spring-damper camera physics",
-                [&config]() { return config.cameraSmoothingEnabled ? "[ ON ]" : "[ OFF ]"; },
-                [&config]() { config.cameraSmoothingEnabled = !config.cameraSmoothingEnabled; }
+                [&runtime]() { return runtime.cameraSmoothingEnabled.load() ? "[ ON ]" : "[ OFF ]"; },
+                [&runtime]() { runtime.cameraSmoothingEnabled.store(!runtime.cameraSmoothingEnabled.load()); }
             },
             {
-                "Camera Damping Time",
-                "Smooth response window in milliseconds",
-                [&config]() { return std::to_string(static_cast<int>(config.smoothTime * 1000.0f)) + " ms"; },
-                [&config]() {
-                    config.smoothTime += 0.010f;
-                    if (config.smoothTime > 0.100f) config.smoothTime = 0.010f;
+                "Camera Smoothing Strength",
+                "Frame-rate independent damping strength",
+                [&runtime]() { return std::to_string(static_cast<int>(runtime.cameraSmoothingStrength.load() * 100.0f)) + "%"; },
+                [&runtime]() {
+                    float s = runtime.cameraSmoothingStrength.load() + 0.1f;
+                    if (s > 1.0f) s = 0.0f;
+                    runtime.cameraSmoothingStrength.store(s);
                 }
             },
             {
-                "UI / HUD Masking",
-                "Prevent crosshair / UI distortion during interpolation",
-                [&config]() { return config.uiMaskingEnabled ? "[ ON ]" : "[ OFF ]"; },
-                [&config]() { config.uiMaskingEnabled = !config.uiMaskingEnabled; }
+                "Low Latency Mode",
+                "Minimize frame queue depth and render buffering",
+                [&runtime]() { return runtime.lowLatencyMode.load() ? "[ ON ]" : "[ OFF ]"; },
+                [&runtime]() { runtime.lowLatencyMode.store(!runtime.lowLatencyMode.load()); }
             },
             {
-                "Disocclusion Protection",
-                "Mask newly revealed surface boundaries",
-                [&config]() { return config.disocclusionProtection ? "[ ON ]" : "[ OFF ]"; },
-                [&config]() { config.disocclusionProtection = !config.disocclusionProtection; }
+                "Debug Overlay",
+                "Show real-time HUD telemetry stats",
+                [&runtime]() { return runtime.debugOverlayEnabled.load() ? "[ ON ]" : "[ OFF ]"; },
+                [&runtime]() { runtime.debugOverlayEnabled.store(!runtime.debugOverlayEnabled.load()); }
             }
         };
     }

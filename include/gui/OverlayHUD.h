@@ -2,48 +2,42 @@
 #define OVERLAY_HUD_H
 
 #include <string>
-#include "LeviMod.h"
+#include "RuntimeSettings.hpp"
+#include "hooks/RenderHooks.hpp"
 
 namespace LeviMod {
 
     struct HUDStats {
-        float baseFPS = 60.0f;
-        float generatedFPS = 120.0f;
+        float realFPS = 60.0f;
+        float outputFPS = 120.0f;
         float frameTimeMs = 16.6f;
-        float inputLatencyMs = 8.2f;
-        std::string currentFrameType = "REAL"; // REAL or GENERATED
+        std::string frameType = "REAL";
     };
 
     class OverlayHUD {
     public:
-        static std::string renderOverlayText(const HUDStats& stats, const ModConfig& config) {
-            std::string text = "--- [Levi FrameGen & Camera Smooth] ---\n";
+        static std::string renderOverlayText(const HUDStats& stats, const RuntimeSettings& runtime) {
+            if (!runtime.debugOverlayEnabled.load()) return "";
 
-            if (config.showRealFPS) {
-                text += "Base Real FPS: " + std::to_string(static_cast<int>(stats.baseFPS)) + " FPS\n";
-            }
-            if (config.showGeneratedFPS) {
-                text += "Display FPS (FG): " + std::to_string(static_cast<int>(stats.generatedFPS)) + " FPS\n";
-            }
-            if (config.showFrameTime) {
-                text += "Frame Time: " + std::to_string(stats.frameTimeMs).substr(0, 5) + " ms\n";
-            }
-            if (config.showInputLatency) {
-                text += "Input Latency: " + std::to_string(stats.inputLatencyMs).substr(0, 4) + " ms\n";
-            }
-            if (config.showFrameType) {
-                text += "Frame Type: [" + stats.currentFrameType + "]\n";
-            }
+            std::string text = "--- [Levi FrameGen + Camera Smooth] ---\n";
+            text += "FrameGen: " + std::string(runtime.frameGenerationEnabled.load() ? "ON" : "OFF") + "\n";
 
-            text += "Frame Gen Mode: " + std::string(config.frameGenEnabled ? "ON (" + config.frameGenPriority + " / " + config.motionEstimationQuality + " Quality)" : "OFF") + "\n";
-            text += "Camera Response: " + config.cameraResponse + " (" + std::to_string(static_cast<int>(config.smoothingStrength * 100.0f)) + "% Strength)\n";
+            int mode = runtime.frameGenerationMode.load();
+            text += "Mode: " + std::string(mode == 0 ? "Off" : (mode == 1 ? "1x" : "2x")) + "\n";
 
-            if (config.motionVectorDebug) {
-                text += " [DEBUG] Motion Vectors: Active | Range: " + std::to_string(config.motionSearchRange) + "px\n";
-            }
-            if (config.frameHistoryDebug) {
-                text += " [DEBUG] Queue Length: " + std::to_string(config.frameQueueLength) + " frames\n";
-            }
+            text += "Real FPS: " + std::to_string(static_cast<int>(stats.realFPS)) + "\n";
+            text += "Output FPS: " + std::to_string(static_cast<int>(stats.outputFPS)) + "\n";
+            text += "Frame Time: " + std::to_string(stats.frameTimeMs).substr(0, 4) + " ms\n";
+            text += "Generated Frame: " + std::string(stats.frameType == "GENERATED" ? "YES" : "NO") + "\n";
+            text += "Camera Smooth: " + std::string(runtime.cameraSmoothingEnabled.load() ? "ON" : "OFF") + "\n";
+
+            int preset = runtime.preset.load();
+            std::string presetStr = (preset == 0) ? "LOW LATENCY" : ((preset == 2) ? "SMOOTHNESS" : "BALANCED");
+            text += "Latency Mode: " + presetStr + "\n";
+
+            text += "Real Frames: " + std::to_string(runtime.realFrameCount.load()) + "\n";
+            text += "Generated Frames: " + std::to_string(runtime.generatedFrameCount.load()) + "\n";
+            text += "Dropped FG Count: " + std::to_string(runtime.droppedFrameCount.load()) + "\n";
 
             return text;
         }

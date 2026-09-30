@@ -4,10 +4,9 @@
 #include "camera/CameraSmoothing.h"
 #include "framegen/FrameGenEngine.h"
 #include "math/MatrixMath.h"
-#include "config/ConfigManager.h"
 #include "gui/OverlayHUD.h"
-#include "gui/ModMenu.h"
-#include "LeviMod.h"
+#include "pl/ModMenu.hpp"
+#include "FrameGenMod.hpp"
 
 void testCameraSmoothing() {
     std::cout << "[Test] Running Camera Smoothing tests..." << std::endl;
@@ -75,37 +74,33 @@ void testFrameGenEngine() {
     std::cout << "  ✓ Frame Generation motion interpolation verified! Mid Pixel Val: " << (int)midVal << std::endl;
 }
 
-void testConfigAndModMenu() {
-    std::cout << "[Test] Running Config & Mod Menu Integration tests..." << std::endl;
+void testModLifecycleAndRuntime() {
+    std::cout << "[Test] Running Mod Lifecycle & Runtime Settings tests..." << std::endl;
+    auto& mod = LeviMod::FrameGenMod::getInstance();
+    assert(mod.load());
+    assert(mod.enable());
 
-    std::string testConfigPath = "test_config.ini";
-    LeviMod::ModConfig config;
-    config.smoothTime = 0.045f;
-    config.frameQueueLength = 3;
-    config.cameraResponse = "Cinematic";
-
-    assert(LeviMod::ConfigManager::saveToFile(testConfigPath, config));
-
-    LeviMod::ModConfig loadedConfig;
-    assert(LeviMod::ConfigManager::loadFromFile(testConfigPath, loadedConfig));
-    assert(std::abs(loadedConfig.smoothTime - 0.045f) < 1e-4f);
-    assert(loadedConfig.frameQueueLength == 3);
-    assert(loadedConfig.cameraResponse == "Cinematic");
+    auto& runtime = mod.getRuntime();
+    assert(runtime.masterEnabled.load());
+    assert(runtime.frameGenerationEnabled.load());
 
     LeviMod::HUDStats stats;
-    std::string hud = LeviMod::OverlayHUD::renderOverlayText(stats, loadedConfig);
+    std::string hud = LeviMod::OverlayHUD::renderOverlayText(stats, runtime);
     assert(!hud.empty());
-    assert(hud.find("Cinematic") != std::string::npos);
+    assert(hud.find("FrameGen: ON") != std::string::npos);
 
-    std::cout << "  ✓ Config & Mod Menu Integration verified!" << std::endl;
+    assert(mod.disable());
+    assert(mod.unload());
+
+    std::cout << "  ✓ Mod Lifecycle & Runtime Settings verified!" << std::endl;
 }
 
 int main() {
-    std::cout << "=== LeviLaunchroid Mod Unit Test Suite ===" << std::endl;
+    std::cout << "=== LeviLaunchroid Native Mod Unit Test Suite ===" << std::endl;
     testCameraSmoothing();
     testMatrixMath();
     testFrameGenEngine();
-    testConfigAndModMenu();
+    testModLifecycleAndRuntime();
     std::cout << "=== ALL TESTS PASSED SUCCESSFULLY! ===" << std::endl;
     return 0;
 }

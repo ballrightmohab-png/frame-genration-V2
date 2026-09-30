@@ -1,9 +1,9 @@
 #ifndef LEVI_HOOKS_H
 #define LEVI_HOOKS_H
 
-#include "camera/CameraSmoothing.h"
-#include "framegen/FrameGenEngine.h"
-#include "LeviMod.h"
+#include "hooks/CameraHookManager.hpp"
+#include "hooks/RenderHooks.hpp"
+#include "RuntimeSettings.hpp"
 #include <iostream>
 
 namespace LeviMod {
@@ -15,90 +15,28 @@ namespace LeviMod {
             return instance;
         }
 
-        // Synchronize active config parameters into the physics & render engine
         void syncConfigToEngine() {
-            auto& config = PluginMain::getInstance().getConfig();
-
-            // Set camera response presets
-            if (config.cameraResponse == "Instant") {
-                m_cameraSmoother.setSmoothTime(0.005f);
-            } else if (config.cameraResponse == "Cinematic") {
-                m_cameraSmoother.setSmoothTime(0.080f);
-            } else { // Smooth
-                m_cameraSmoother.setSmoothTime(0.040f * (1.0f - config.smoothingStrength * 0.5f));
-            }
-
-            m_cameraSmoother.setMaxSpeed(config.maxSpeed);
+            // Unused stub kept for interface compatibility
         }
 
-        // Initialize Native Bedrock / LeviLaunchroid Hooks
         bool installHooks() {
-            std::cout << "[LeviHooks] Installing native symbol & memory hooks for Bedrock Render & Camera..." << std::endl;
-
-            syncConfigToEngine();
-
-            // Hook Camera Transformation Routine
-            m_cameraHookInstalled = hookCameraTransform();
-
-            // Hook Graphics Present / Swapchain Render Loop
-            m_renderHookInstalled = hookSwapchainPresent();
-
-            return m_cameraHookInstalled && m_renderHookInstalled;
+            std::cout << "[LeviHooks] Installing Bedrock Render & Camera hooks..." << std::endl;
+            bool camOk = CameraHookManager::getInstance().install();
+            bool renderOk = RenderHooks::getInstance().install();
+            return camOk && renderOk;
         }
 
         void uninstallHooks() {
-            std::cout << "[LeviHooks] Uninstalling hooks..." << std::endl;
-            m_cameraHookInstalled = false;
-            m_renderHookInstalled = false;
+            std::cout << "[LeviHooks] Uninstalling Bedrock hooks..." << std::endl;
+            CameraHookManager::getInstance().uninstall();
+            RenderHooks::getInstance().uninstall();
         }
 
-        // Sub-tick camera update hook callback
-        void onCameraUpdate(CameraRotation& outRot, Vec3& outPos, float deltaTime, bool isAttacking = false, bool isInventoryOpen = false) {
-            auto& config = PluginMain::getInstance().getConfig();
-
-            if (config.disableWhileAttacking && isAttacking) return;
-            if (config.disableWhileInventoryOpen && isInventoryOpen) return;
-
-            if (config.cameraSmoothingEnabled) {
-                outRot = m_cameraSmoother.updateRotation(outRot, deltaTime);
-                outPos = m_cameraSmoother.updatePosition(outPos, deltaTime);
-            }
-        }
-
-        // Render Frame Present Hook Callback
-        void onRenderPresent(const uint8_t* colorBuffer, const float* depthBuffer, const Mat4& viewProj, int width, int height) {
-            auto& config = PluginMain::getInstance().getConfig();
-            if (!config.frameGenEnabled) return;
-
-            if (m_frameGen.getWidth() != width || m_frameGen.getHeight() != height) {
-                m_frameGen.initialize(width, height);
-            }
-
-            // Push game render frame
-            m_frameGen.pushNewFrame(colorBuffer, depthBuffer, viewProj);
-        }
-
-        CameraSmoothing& getCameraSmoother() { return m_cameraSmoother; }
-        FrameGenEngine& getFrameGenEngine() { return m_frameGen; }
+        CameraHookManager& getCameraHooks() { return CameraHookManager::getInstance(); }
+        RenderHooks& getRenderHooks() { return RenderHooks::getInstance(); }
 
     private:
         LeviHookManager() = default;
-
-        bool hookCameraTransform() {
-            std::cout << "  ✓ Detoured CameraComponent::updateRotation -> LeviMod::onCameraUpdate" << std::endl;
-            return true;
-        }
-
-        bool hookSwapchainPresent() {
-            std::cout << "  ✓ Detoured RenderDragon / Swapchain::present -> LeviMod::onRenderPresent" << std::endl;
-            return true;
-        }
-
-        CameraSmoothing m_cameraSmoother;
-        FrameGenEngine m_frameGen;
-
-        bool m_cameraHookInstalled = false;
-        bool m_renderHookInstalled = false;
     };
 
 } // namespace LeviMod
