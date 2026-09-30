@@ -18,16 +18,49 @@
 namespace LeviMod {
 
     struct ModConfig {
-        // Camera Smoothing Settings
-        bool cameraSmoothingEnabled = true;
-        float smoothTime = 0.040f; // Seconds to reach target angle (40ms)
-        float maxSpeed = 3600.0f;  // Max rotation speed deg/sec
-
-        // Frame Generation Settings
+        // --- 🎬 Frame Generation & Motion Estimation ---
         bool frameGenEnabled = true;
-        int frameMultiplier = 2; // 2x FPS multiplier
-        float motionVectorStrength = 1.0f;
-        int targetFPSCap = 240;
+        int frameMultiplier = 2; // 2x or 3x
+        bool tfrAlternatingFrames = true; // Real -> Generated -> Real -> Generated
+        bool usePreviousRealFrame = true;
+        int frameQueueLength = 2; // 1, 2, 3 (experimental)
+        float generatedFrameStrength = 1.0f; // 0.0 - 1.0
+        std::string motionEstimationQuality = "Medium"; // Low, Medium, High
+        int motionSearchRange = 16;
+        bool sceneChangeDetection = true;
+        bool fastCameraMovementProtection = true;
+
+        // --- 🎥 Camera Smoothing Physics ---
+        bool cameraSmoothingEnabled = true;
+        float smoothTime = 0.040f; // Seconds to reach target angle
+        float maxSpeed = 3600.0f;  // Max rotation speed deg/sec
+        float smoothingStrength = 0.80f; // 0 - 100% (0.0 to 1.0)
+        std::string cameraResponse = "Smooth"; // Instant, Smooth, Cinematic
+        bool mouseTouchSmoothing = true;
+        bool rotationPrediction = true;
+        bool adaptiveSmoothing = true;
+        bool combatSmoothing = true;
+        bool disableWhileAttacking = false;
+        bool disableWhileInventoryOpen = true;
+
+        // --- ⚡ Performance & Latency ---
+        bool lowLatencyMode = true;
+        std::string frameGenPriority = "Balanced"; // Quality, Balanced, Performance
+        bool adaptiveFrameGeneration = true;
+        bool thermalProtection = true;
+        bool disableFgWhenFpsDrops = true;
+        std::string targetRealFPS = "60"; // 30, 45, 60, 90, Auto
+
+        // --- 🧪 Debug & Telemetry Overlays ---
+        bool showRealFPS = true;
+        bool showGeneratedFPS = true;
+        bool showFrameTime = false;
+        bool showInputLatency = false;
+        bool showFrameType = true; // REAL / GENERATED
+        bool motionVectorDebug = false;
+        bool frameHistoryDebug = false;
+
+        // Legacy compatibility options
         bool uiMaskingEnabled = true;
         bool disocclusionProtection = true;
         float disocclusionThreshold = 0.05f;

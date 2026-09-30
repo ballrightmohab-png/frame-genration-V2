@@ -81,17 +81,21 @@ void testConfigAndModMenu() {
     std::string testConfigPath = "test_config.ini";
     LeviMod::ModConfig config;
     config.smoothTime = 0.045f;
-    config.frameMultiplier = 3;
+    config.frameQueueLength = 3;
+    config.cameraResponse = "Cinematic";
 
     assert(LeviMod::ConfigManager::saveToFile(testConfigPath, config));
 
     LeviMod::ModConfig loadedConfig;
     assert(LeviMod::ConfigManager::loadFromFile(testConfigPath, loadedConfig));
     assert(std::abs(loadedConfig.smoothTime - 0.045f) < 1e-4f);
-    assert(loadedConfig.frameMultiplier == 3);
+    assert(loadedConfig.frameQueueLength == 3);
+    assert(loadedConfig.cameraResponse == "Cinematic");
 
-    LeviMod::ModMenu menu;
-    assert(menu.isVisible());
+    LeviMod::HUDStats stats;
+    std::string hud = LeviMod::OverlayHUD::renderOverlayText(stats, loadedConfig);
+    assert(!hud.empty());
+    assert(hud.find("Cinematic") != std::string::npos);
 
     std::cout << "  ✓ Config & Mod Menu Integration verified!" << std::endl;
 }

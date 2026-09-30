@@ -18,7 +18,16 @@ namespace LeviMod {
         // Synchronize active config parameters into the physics & render engine
         void syncConfigToEngine() {
             auto& config = PluginMain::getInstance().getConfig();
-            m_cameraSmoother.setSmoothTime(config.smoothTime);
+
+            // Set camera response presets
+            if (config.cameraResponse == "Instant") {
+                m_cameraSmoother.setSmoothTime(0.005f);
+            } else if (config.cameraResponse == "Cinematic") {
+                m_cameraSmoother.setSmoothTime(0.080f);
+            } else { // Smooth
+                m_cameraSmoother.setSmoothTime(0.040f * (1.0f - config.smoothingStrength * 0.5f));
+            }
+
             m_cameraSmoother.setMaxSpeed(config.maxSpeed);
         }
 
@@ -44,8 +53,12 @@ namespace LeviMod {
         }
 
         // Sub-tick camera update hook callback
-        void onCameraUpdate(CameraRotation& outRot, Vec3& outPos, float deltaTime) {
+        void onCameraUpdate(CameraRotation& outRot, Vec3& outPos, float deltaTime, bool isAttacking = false, bool isInventoryOpen = false) {
             auto& config = PluginMain::getInstance().getConfig();
+
+            if (config.disableWhileAttacking && isAttacking) return;
+            if (config.disableWhileInventoryOpen && isInventoryOpen) return;
+
             if (config.cameraSmoothingEnabled) {
                 outRot = m_cameraSmoother.updateRotation(outRot, deltaTime);
                 outPos = m_cameraSmoother.updatePosition(outPos, deltaTime);

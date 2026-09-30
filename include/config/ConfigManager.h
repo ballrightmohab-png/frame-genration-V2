@@ -29,18 +29,54 @@ namespace LeviMod {
                         value.erase(value.find_last_not_of(" \t\r\n") + 1);
 
                         try {
-                            if (key == "cameraSmoothingEnabled") config.cameraSmoothingEnabled = (value == "true" || value == "1");
+                            // Frame Gen & Motion Estimation
+                            if (key == "frameGenEnabled") config.frameGenEnabled = (value == "true" || value == "1");
+                            else if (key == "frameMultiplier") config.frameMultiplier = std::stoi(value);
+                            else if (key == "tfrAlternatingFrames") config.tfrAlternatingFrames = (value == "true" || value == "1");
+                            else if (key == "usePreviousRealFrame") config.usePreviousRealFrame = (value == "true" || value == "1");
+                            else if (key == "frameQueueLength") config.frameQueueLength = std::stoi(value);
+                            else if (key == "generatedFrameStrength") config.generatedFrameStrength = std::stof(value);
+                            else if (key == "motionEstimationQuality") config.motionEstimationQuality = value;
+                            else if (key == "motionSearchRange") config.motionSearchRange = std::stoi(value);
+                            else if (key == "sceneChangeDetection") config.sceneChangeDetection = (value == "true" || value == "1");
+                            else if (key == "fastCameraMovementProtection") config.fastCameraMovementProtection = (value == "true" || value == "1");
+
+                            // Camera Smoothing
+                            else if (key == "cameraSmoothingEnabled") config.cameraSmoothingEnabled = (value == "true" || value == "1");
                             else if (key == "smoothTime") config.smoothTime = std::stof(value);
                             else if (key == "maxSpeed") config.maxSpeed = std::stof(value);
-                            else if (key == "frameGenEnabled") config.frameGenEnabled = (value == "true" || value == "1");
-                            else if (key == "frameMultiplier") config.frameMultiplier = std::stoi(value);
-                            else if (key == "motionVectorStrength") config.motionVectorStrength = std::stof(value);
+                            else if (key == "smoothingStrength") config.smoothingStrength = std::stof(value);
+                            else if (key == "cameraResponse") config.cameraResponse = value;
+                            else if (key == "mouseTouchSmoothing") config.mouseTouchSmoothing = (value == "true" || value == "1");
+                            else if (key == "rotationPrediction") config.rotationPrediction = (value == "true" || value == "1");
+                            else if (key == "adaptiveSmoothing") config.adaptiveSmoothing = (value == "true" || value == "1");
+                            else if (key == "combatSmoothing") config.combatSmoothing = (value == "true" || value == "1");
+                            else if (key == "disableWhileAttacking") config.disableWhileAttacking = (value == "true" || value == "1");
+                            else if (key == "disableWhileInventoryOpen") config.disableWhileInventoryOpen = (value == "true" || value == "1");
+
+                            // Performance & Latency
+                            else if (key == "lowLatencyMode") config.lowLatencyMode = (value == "true" || value == "1");
+                            else if (key == "frameGenPriority") config.frameGenPriority = value;
+                            else if (key == "adaptiveFrameGeneration") config.adaptiveFrameGeneration = (value == "true" || value == "1");
+                            else if (key == "thermalProtection") config.thermalProtection = (value == "true" || value == "1");
+                            else if (key == "disableFgWhenFpsDrops") config.disableFgWhenFpsDrops = (value == "true" || value == "1");
+                            else if (key == "targetRealFPS") config.targetRealFPS = value;
+
+                            // Debug & Telemetry
+                            else if (key == "showRealFPS") config.showRealFPS = (value == "true" || value == "1");
+                            else if (key == "showGeneratedFPS") config.showGeneratedFPS = (value == "true" || value == "1");
+                            else if (key == "showFrameTime") config.showFrameTime = (value == "true" || value == "1");
+                            else if (key == "showInputLatency") config.showInputLatency = (value == "true" || value == "1");
+                            else if (key == "showFrameType") config.showFrameType = (value == "true" || value == "1");
+                            else if (key == "motionVectorDebug") config.motionVectorDebug = (value == "true" || value == "1");
+                            else if (key == "frameHistoryDebug") config.frameHistoryDebug = (value == "true" || value == "1");
+
+                            // Legacy
                             else if (key == "uiMaskingEnabled") config.uiMaskingEnabled = (value == "true" || value == "1");
                             else if (key == "disocclusionProtection") config.disocclusionProtection = (value == "true" || value == "1");
-                            else if (key == "targetFPSCap") config.targetFPSCap = std::stoi(value);
                             else if (key == "disocclusionThreshold") config.disocclusionThreshold = std::stof(value);
                         } catch (...) {
-                            // Keep default on parse error
+                            // Ignore malformed values
                         }
                     }
                 }
@@ -53,22 +89,50 @@ namespace LeviMod {
             if (!file.is_open()) return false;
 
             file << "# ======================================================\n";
-            file << "# 🎮 LEVILAUNCHROID FRAME GEN & CAMERA SMOOTHING CONFIG \n";
+            file << "# 🎮 LEVILAUNCHROID ADVANCED SETTINGS CONFIGURATION     \n";
             file << "# ======================================================\n\n";
 
-            file << "# --- Camera Smoothing Physics ---\n";
-            file << "cameraSmoothingEnabled=" << (config.cameraSmoothingEnabled ? "true" : "false") << "\n";
-            file << "smoothTime=" << config.smoothTime << " # Smooth response window in seconds (e.g. 0.040 = 40ms)\n";
-            file << "maxSpeed=" << config.maxSpeed << " # Max angular velocity cap deg/sec\n\n";
-
-            file << "# --- Motion-Compensated Frame Generation ---\n";
+            file << "# --- 🎬 Frame Generation & Motion Estimation ---\n";
             file << "frameGenEnabled=" << (config.frameGenEnabled ? "true" : "false") << "\n";
-            file << "frameMultiplier=" << config.frameMultiplier << " # FPS Multiplier (2 = 2x, 3 = 3x)\n";
-            file << "motionVectorStrength=" << config.motionVectorStrength << " # Motion vector power\n";
-            file << "targetFPSCap=" << config.targetFPSCap << " # Maximum target interpolated FPS cap\n";
-            file << "uiMaskingEnabled=" << (config.uiMaskingEnabled ? "true" : "false") << " # Protect UI elements from warping\n";
-            file << "disocclusionProtection=" << (config.disocclusionProtection ? "true" : "false") << " # Occlusion border mask\n";
-            file << "disocclusionThreshold=" << config.disocclusionThreshold << "\n";
+            file << "frameMultiplier=" << config.frameMultiplier << "\n";
+            file << "tfrAlternatingFrames=" << (config.tfrAlternatingFrames ? "true" : "false") << "\n";
+            file << "usePreviousRealFrame=" << (config.usePreviousRealFrame ? "true" : "false") << "\n";
+            file << "frameQueueLength=" << config.frameQueueLength << "\n";
+            file << "generatedFrameStrength=" << config.generatedFrameStrength << "\n";
+            file << "motionEstimationQuality=" << config.motionEstimationQuality << "\n";
+            file << "motionSearchRange=" << config.motionSearchRange << "\n";
+            file << "sceneChangeDetection=" << (config.sceneChangeDetection ? "true" : "false") << "\n";
+            file << "fastCameraMovementProtection=" << (config.fastCameraMovementProtection ? "true" : "false") << "\n\n";
+
+            file << "# --- 🎥 Camera Smoothing Physics ---\n";
+            file << "cameraSmoothingEnabled=" << (config.cameraSmoothingEnabled ? "true" : "false") << "\n";
+            file << "smoothTime=" << config.smoothTime << "\n";
+            file << "maxSpeed=" << config.maxSpeed << "\n";
+            file << "smoothingStrength=" << config.smoothingStrength << "\n";
+            file << "cameraResponse=" << config.cameraResponse << "\n";
+            file << "mouseTouchSmoothing=" << (config.mouseTouchSmoothing ? "true" : "false") << "\n";
+            file << "rotationPrediction=" << (config.rotationPrediction ? "true" : "false") << "\n";
+            file << "adaptiveSmoothing=" << (config.adaptiveSmoothing ? "true" : "false") << "\n";
+            file << "combatSmoothing=" << (config.combatSmoothing ? "true" : "false") << "\n";
+            file << "disableWhileAttacking=" << (config.disableWhileAttacking ? "true" : "false") << "\n";
+            file << "disableWhileInventoryOpen=" << (config.disableWhileInventoryOpen ? "true" : "false") << "\n\n";
+
+            file << "# --- ⚡ Performance & Latency ---\n";
+            file << "lowLatencyMode=" << (config.lowLatencyMode ? "true" : "false") << "\n";
+            file << "frameGenPriority=" << config.frameGenPriority << "\n";
+            file << "adaptiveFrameGeneration=" << (config.adaptiveFrameGeneration ? "true" : "false") << "\n";
+            file << "thermalProtection=" << (config.thermalProtection ? "true" : "false") << "\n";
+            file << "disableFgWhenFpsDrops=" << (config.disableFgWhenFpsDrops ? "true" : "false") << "\n";
+            file << "targetRealFPS=" << config.targetRealFPS << "\n\n";
+
+            file << "# --- 🧪 Debug Overlays ---\n";
+            file << "showRealFPS=" << (config.showRealFPS ? "true" : "false") << "\n";
+            file << "showGeneratedFPS=" << (config.showGeneratedFPS ? "true" : "false") << "\n";
+            file << "showFrameTime=" << (config.showFrameTime ? "true" : "false") << "\n";
+            file << "showInputLatency=" << (config.showInputLatency ? "true" : "false") << "\n";
+            file << "showFrameType=" << (config.showFrameType ? "true" : "false") << "\n";
+            file << "motionVectorDebug=" << (config.motionVectorDebug ? "true" : "false") << "\n";
+            file << "frameHistoryDebug=" << (config.frameHistoryDebug ? "true" : "false") << "\n";
 
             return true;
         }
