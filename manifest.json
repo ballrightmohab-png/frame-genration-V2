@@ -1,0 +1,18 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "Levi Frame Generation & Camera Smoothing",
+    "description": "High performance motion-compensated frame generation and spring-damper camera smoothing for LeviLaunchroid Bedrock.",
+    "uuid": "8f3b2a1c-4e5d-6f7a-8b9c-0d1e2f3a4b5c",
+    "version": [1, 0, 0],
+    "min_engine_version": [1, 20, 0]
+  },
+  "modules": [
+    {
+      "type": "native_plugin",
+      "uuid": "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+      "version": [1, 0, 0],
+      "entry": "libLeviFrameGenSmooth.so"
+    }
+  ]
+}

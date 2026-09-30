@@ -18,17 +18,19 @@
 namespace LeviMod {
 
     struct ModConfig {
-        // Camera Smoothing
+        // Camera Smoothing Settings
         bool cameraSmoothingEnabled = true;
-        float smoothTime = 0.05f; // Seconds to reach target angle
-        float maxSpeed = 1000.0f; // Max angular rotation speed deg/sec
+        float smoothTime = 0.040f; // Seconds to reach target angle (40ms)
+        float maxSpeed = 3600.0f;  // Max rotation speed deg/sec
 
-        // Frame Generation
+        // Frame Generation Settings
         bool frameGenEnabled = true;
-        int frameMultiplier = 2; // 2x FPS (1 interpolated frame per real frame)
+        int frameMultiplier = 2; // 2x FPS multiplier
         float motionVectorStrength = 1.0f;
+        int targetFPSCap = 240;
         bool uiMaskingEnabled = true;
         bool disocclusionProtection = true;
+        float disocclusionThreshold = 0.05f;
     };
 
     class LEVI_API PluginMain {
@@ -38,6 +40,9 @@ namespace LeviMod {
         bool initialize();
         void shutdown();
 
+        bool loadConfig(const std::string& path = "config.ini");
+        bool saveConfig(const std::string& path = "config.ini");
+
         ModConfig& getConfig() { return m_config; }
 
     private:
@@ -45,6 +50,7 @@ namespace LeviMod {
         ~PluginMain() = default;
 
         ModConfig m_config;
+        std::string m_configPath = "config.ini";
         bool m_initialized = false;
     };
 

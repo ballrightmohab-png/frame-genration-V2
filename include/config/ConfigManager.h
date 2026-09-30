@@ -23,20 +23,25 @@ namespace LeviMod {
                 if (std::getline(is_line, key, '=')) {
                     std::string value;
                     if (std::getline(is_line, value)) {
-                        // Trim whitespace
                         key.erase(0, key.find_first_not_of(" \t\r\n"));
                         key.erase(key.find_last_not_of(" \t\r\n") + 1);
                         value.erase(0, value.find_first_not_of(" \t\r\n"));
                         value.erase(value.find_last_not_of(" \t\r\n") + 1);
 
-                        if (key == "cameraSmoothingEnabled") config.cameraSmoothingEnabled = (value == "true" || value == "1");
-                        else if (key == "smoothTime") config.smoothTime = std::stof(value);
-                        else if (key == "maxSpeed") config.maxSpeed = std::stof(value);
-                        else if (key == "frameGenEnabled") config.frameGenEnabled = (value == "true" || value == "1");
-                        else if (key == "frameMultiplier") config.frameMultiplier = std::stoi(value);
-                        else if (key == "motionVectorStrength") config.motionVectorStrength = std::stof(value);
-                        else if (key == "uiMaskingEnabled") config.uiMaskingEnabled = (value == "true" || value == "1");
-                        else if (key == "disocclusionProtection") config.disocclusionProtection = (value == "true" || value == "1");
+                        try {
+                            if (key == "cameraSmoothingEnabled") config.cameraSmoothingEnabled = (value == "true" || value == "1");
+                            else if (key == "smoothTime") config.smoothTime = std::stof(value);
+                            else if (key == "maxSpeed") config.maxSpeed = std::stof(value);
+                            else if (key == "frameGenEnabled") config.frameGenEnabled = (value == "true" || value == "1");
+                            else if (key == "frameMultiplier") config.frameMultiplier = std::stoi(value);
+                            else if (key == "motionVectorStrength") config.motionVectorStrength = std::stof(value);
+                            else if (key == "uiMaskingEnabled") config.uiMaskingEnabled = (value == "true" || value == "1");
+                            else if (key == "disocclusionProtection") config.disocclusionProtection = (value == "true" || value == "1");
+                            else if (key == "targetFPSCap") config.targetFPSCap = std::stoi(value);
+                            else if (key == "disocclusionThreshold") config.disocclusionThreshold = std::stof(value);
+                        } catch (...) {
+                            // Keep default on parse error
+                        }
                     }
                 }
             }
@@ -47,15 +52,23 @@ namespace LeviMod {
             std::ofstream file(filepath);
             if (!file.is_open()) return false;
 
-            file << "# LeviLaunchroid Frame Gen & Camera Smoothing Config\n";
+            file << "# ======================================================\n";
+            file << "# 🎮 LEVILAUNCHROID FRAME GEN & CAMERA SMOOTHING CONFIG \n";
+            file << "# ======================================================\n\n";
+
+            file << "# --- Camera Smoothing Physics ---\n";
             file << "cameraSmoothingEnabled=" << (config.cameraSmoothingEnabled ? "true" : "false") << "\n";
-            file << "smoothTime=" << config.smoothTime << "\n";
-            file << "maxSpeed=" << config.maxSpeed << "\n";
+            file << "smoothTime=" << config.smoothTime << " # Smooth response window in seconds (e.g. 0.040 = 40ms)\n";
+            file << "maxSpeed=" << config.maxSpeed << " # Max angular velocity cap deg/sec\n\n";
+
+            file << "# --- Motion-Compensated Frame Generation ---\n";
             file << "frameGenEnabled=" << (config.frameGenEnabled ? "true" : "false") << "\n";
-            file << "frameMultiplier=" << config.frameMultiplier << "\n";
-            file << "motionVectorStrength=" << config.motionVectorStrength << "\n";
-            file << "uiMaskingEnabled=" << (config.uiMaskingEnabled ? "true" : "false") << "\n";
-            file << "disocclusionProtection=" << (config.disocclusionProtection ? "true" : "false") << "\n";
+            file << "frameMultiplier=" << config.frameMultiplier << " # FPS Multiplier (2 = 2x, 3 = 3x)\n";
+            file << "motionVectorStrength=" << config.motionVectorStrength << " # Motion vector power\n";
+            file << "targetFPSCap=" << config.targetFPSCap << " # Maximum target interpolated FPS cap\n";
+            file << "uiMaskingEnabled=" << (config.uiMaskingEnabled ? "true" : "false") << " # Protect UI elements from warping\n";
+            file << "disocclusionProtection=" << (config.disocclusionProtection ? "true" : "false") << " # Occlusion border mask\n";
+            file << "disocclusionThreshold=" << config.disocclusionThreshold << "\n";
 
             return true;
         }

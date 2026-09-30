@@ -1,4 +1,4 @@
-name: Build & Release LeviFrameGenSmooth Mod
+name: Build & Package LeviFrameGenSmooth .levipack
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [ main, master ]
 
 jobs:
-  build-and-test:
+  build-and-package:
     runs-on: ubuntu-latest
 
     steps:
@@ -17,7 +17,7 @@ jobs:
       - name: Install Build Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake gcc g++
+          sudo apt-get install -y build-essential cmake gcc g++ zip
 
       - name: Configure CMake
         run: |
@@ -25,18 +25,18 @@ jobs:
           cd build
           cmake -DCMAKE_BUILD_TYPE=Release ..
 
-      - name: Build Mod & Test Executable
+      - name: Build Mod & levipack Package
         run: |
           cd build
-          make -j$(nproc)
+          make -j$(nproc) levipack levi_mod_runner mod_tests
 
       - name: Run Mod Test Suite
         run: |
           cd build
           ./mod_tests
 
-      - name: Upload Mod Artifact
+      - name: Upload .levipack Mod Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: LeviFrameGenSmooth-Plugin
-          path: build/libLeviFrameGenSmooth.so
+          name: LeviFrameGenSmooth-ModPack
+          path: build/LeviFrameGenSmooth.levipack

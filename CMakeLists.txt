@@ -33,6 +33,16 @@ target_compile_definitions(LeviFrameGenSmooth PRIVATE
     BUILDING_LEVI_MOD
 )
 
+# Custom target to package the mod into a .levipack zip archive
+add_custom_target(levipack
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/manifest.json ${CMAKE_BINARY_DIR}/manifest.json
+    COMMAND ${CMAKE_COMMAND} -E tar "cfv" "${CMAKE_BINARY_DIR}/LeviFrameGenSmooth.levipack" --format=zip
+            "${CMAKE_BINARY_DIR}/libLeviFrameGenSmooth.so"
+            "${CMAKE_BINARY_DIR}/manifest.json"
+    DEPENDS LeviFrameGenSmooth
+    COMMENT "Packaging LeviLaunchroid mod into LeviFrameGenSmooth.levipack..."
+)
+
 # Build main mod executable runner
 add_executable(levi_mod_runner
     "src/main.cpp"

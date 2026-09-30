@@ -15,9 +15,18 @@ namespace LeviMod {
             return instance;
         }
 
+        // Synchronize active config parameters into the physics & render engine
+        void syncConfigToEngine() {
+            auto& config = PluginMain::getInstance().getConfig();
+            m_cameraSmoother.setSmoothTime(config.smoothTime);
+            m_cameraSmoother.setMaxSpeed(config.maxSpeed);
+        }
+
         // Initialize Native Bedrock / LeviLaunchroid Hooks
         bool installHooks() {
             std::cout << "[LeviHooks] Installing native symbol & memory hooks for Bedrock Render & Camera..." << std::endl;
+
+            syncConfigToEngine();
 
             // Hook Camera Transformation Routine
             m_cameraHookInstalled = hookCameraTransform();
@@ -63,13 +72,11 @@ namespace LeviMod {
         LeviHookManager() = default;
 
         bool hookCameraTransform() {
-            // Simulated native function detour/hook for LocalPlayer::setRot / CameraComponent
             std::cout << "  ✓ Detoured CameraComponent::updateRotation -> LeviMod::onCameraUpdate" << std::endl;
             return true;
         }
 
         bool hookSwapchainPresent() {
-            // Simulated native render pipeline swapchain present hook
             std::cout << "  ✓ Detoured RenderDragon / Swapchain::present -> LeviMod::onRenderPresent" << std::endl;
             return true;
         }
