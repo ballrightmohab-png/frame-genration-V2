@@ -2,7 +2,7 @@
 #include <cassert>
 #include <cmath>
 #include "camera/CameraSmoothing.h"
-#include "framegen/FrameGenEngine.h"
+#include "framegen/TFRFrameGenerator.hpp"
 #include "math/MatrixMath.h"
 #include "gui/OverlayHUD.h"
 #include "pl/ModMenu.hpp"
@@ -44,34 +44,43 @@ void testMatrixMath() {
     std::cout << "  ✓ Matrix Inversion and Projection verified!" << std::endl;
 }
 
-void testFrameGenEngine() {
-    std::cout << "[Test] Running Frame Generation Engine tests..." << std::endl;
-    LeviMod::FrameGenEngine engine;
-    int w = 64, h = 64;
-    engine.initialize(w, h);
+void testTFRFrameGenerator() {
+    std::cout << "[Test] Running Levi TFR Frame Generator tests..." << std::endl;
+    levi::framegen::FrameGenerator fg;
+    fg.setMode(levi::framegen::FrameGenerator::Mode::OneX);
 
-    std::vector<uint8_t> frame1(w * h * 4, 100);
-    std::vector<uint8_t> frame2(w * h * 4, 200);
-    std::vector<float> depth(w * h, 0.5f);
+    int w = 16, h = 16;
+    levi::framegen::Frame f1, f2;
+    f1.resize(w, h);
+    f2.resize(w, h);
 
-    LeviMod::Mat4 m1 = LeviMod::Mat4::rotationYawPitchRoll(0.0f, 0.0f, 0.0f);
-    LeviMod::Mat4 m2 = LeviMod::Mat4::rotationYawPitchRoll(10.0f, 0.0f, 0.0f);
+    std::fill(f1.rgba.begin(), f1.rgba.end(), 100);
+    std::fill(f2.rgba.begin(), f2.rgba.end(), 200);
 
-    engine.pushNewFrame(frame1.data(), depth.data(), m1);
-    assert(!engine.isReady());
+    fg.submitRealFrame(f1);
+    assert(fg.hasPrevious());
+    assert(!fg.hasCurrent());
 
-    engine.pushNewFrame(frame2.data(), depth.data(), m2);
-    assert(engine.isReady());
+    fg.submitRealFrame(f2);
+    assert(fg.hasPrevious());
+    assert(fg.hasCurrent());
 
-    std::vector<uint8_t> interpolatedFrame;
-    bool genSuccess = engine.generateInterpolatedFrame(0.5f, interpolatedFrame);
-    assert(genSuccess);
-    assert(interpolatedFrame.size() == w * h * 4);
+    bool genOk = fg.generate(0.5f);
+    assert(genOk);
 
-    uint8_t midVal = interpolatedFrame[0];
-    assert(midVal >= 130 && midVal <= 170);
+    const auto& genFrame = fg.generatedFrame();
+    assert(genFrame.valid());
+    assert(genFrame.width == w && genFrame.height == h);
 
-    std::cout << "  ✓ Frame Generation motion interpolation verified! Mid Pixel Val: " << (int)midVal << std::endl;
+    // Bilinear + motion weighted sample value check
+    uint8_t midPixelVal = genFrame.rgba[0];
+    assert(midPixelVal >= 130 && midPixelVal <= 170);
+
+    fg.commitCurrentRealFrame();
+    assert(fg.hasPrevious());
+    assert(!fg.hasCurrent());
+
+    std::cout << "  ✓ Levi TFR Frame Generator verified! Mid Pixel Value: " << (int)midPixelVal << std::endl;
 }
 
 void testModLifecycleAndRuntime() {
@@ -99,7 +108,7 @@ int main() {
     std::cout << "=== LeviLaunchroid Native Mod Unit Test Suite ===" << std::endl;
     testCameraSmoothing();
     testMatrixMath();
-    testFrameGenEngine();
+    testTFRFrameGenerator();
     testModLifecycleAndRuntime();
     std::cout << "=== ALL TESTS PASSED SUCCESSFULLY! ===" << std::endl;
     return 0;

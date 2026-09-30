@@ -1,7 +1,7 @@
 #ifndef RENDER_HOOKS_HPP
 #define RENDER_HOOKS_HPP
 
-#include "framegen/FrameGenEngine.h"
+#include "framegen/TFRFrameGenerator.hpp"
 #include "RuntimeSettings.hpp"
 #include "hooks/CameraHookManager.hpp"
 #include <iostream>
@@ -33,65 +33,55 @@ namespace LeviMod {
             m_installed = false;
         }
 
-        // Render Present Hook Pipeline State Machine: REAL -> GENERATED -> REAL -> GENERATED
-        bool onRenderPresent(const uint8_t* realColorPixels, const float* depthPixels,
-                             const Mat4& viewProjMatrix, int width, int height,
-                             RuntimeSettings& runtime, std::vector<uint8_t>& outOutputPixels) {
+        // TFR Pipeline State Machine Execution:
+        // Every Real Frame render produces 2 Present outputs (Real + Generated = 2x FPS)
+        bool processTFRFrame(const uint8_t* realRgba, int width, int height,
+                             RuntimeSettings& runtime, std::vector<uint8_t>& outGeneratedBuffer) {
 
             if (!runtime.masterEnabled.load() || !runtime.frameGenerationEnabled.load() || runtime.frameGenerationMode.load() == 0) {
-                // Fallback: Present Real Frame directly
+                m_tfrEngine.setMode(levi::framegen::FrameGenerator::Mode::Off);
                 runtime.realFrameCount.fetch_add(1, std::memory_order_relaxed);
                 m_lastFrameType = FrameType::REAL;
-                return false; // Display Real Frame
+                return false; // Present Real Frame only
             }
 
-            if (m_engine.getWidth() != width || m_engine.getHeight() != height) {
-                m_engine.initialize(width, height);
-            }
+            m_tfrEngine.setMode(levi::framegen::FrameGenerator::Mode::OneX);
 
-            // Always capture fresh REAL frame into temporal history
-            m_engine.pushNewFrame(realColorPixels, depthPixels, viewProjMatrix);
+            // Construct Real Frame
+            levi::framegen::Frame realFrame;
+            realFrame.width = width;
+            realFrame.height = height;
+            realFrame.rgba.assign(realRgba, realRgba + (width * height * 4));
+
+            m_tfrEngine.submitRealFrame(realFrame);
             runtime.realFrameCount.fetch_add(1, std::memory_order_relaxed);
 
-            // Check history depth: need at least 2 real frames (previousReal + currentReal)
-            if (!m_engine.isReady()) {
-                m_lastFrameType = FrameType::REAL;
-                return false; // Fall back to real frame until history is full
-            }
-
-            // State Machine Check: Alternate Real -> Generated -> Real -> Generated
-            if (m_lastFrameType == FrameType::REAL) {
-                // Generate Intermediate Frame (t = 0.5) anchored to fresh real frames
-                float strength = runtime.generatedFrameStrength.load();
-                if (strength <= 0.01f) {
-                    m_lastFrameType = FrameType::REAL;
-                    return false;
-                }
-
-                bool genOk = m_engine.generateInterpolatedFrame(0.5f, outOutputPixels);
-                if (genOk) {
+            // If history is ready (previous REAL & current REAL exist)
+            if (m_tfrEngine.hasPrevious() && m_tfrEngine.hasCurrent()) {
+                if (m_tfrEngine.generate(0.5f)) {
+                    outGeneratedBuffer = m_tfrEngine.generatedFrame().rgba;
                     runtime.generatedFrameCount.fetch_add(1, std::memory_order_relaxed);
+
+                    // Commit current REAL to history after generation
+                    m_tfrEngine.commitCurrentRealFrame();
                     m_lastFrameType = FrameType::GENERATED;
-                    return true; // Present GENERATED Frame
+                    return true; // Successfully generated interpolated midpoint frame
                 } else {
                     runtime.droppedFrameCount.fetch_add(1, std::memory_order_relaxed);
-                    m_lastFrameType = FrameType::REAL;
-                    return false; // Fallback to Real Frame on error
                 }
-            } else {
-                // Next step in pattern: Present REAL Frame
-                m_lastFrameType = FrameType::REAL;
-                return false; // Display Real Frame
             }
+
+            m_lastFrameType = FrameType::REAL;
+            return false; // Fallback to Real Frame
         }
 
         FrameType getLastFrameType() const { return m_lastFrameType; }
-        FrameGenEngine& getEngine() { return m_engine; }
+        levi::framegen::FrameGenerator& getTFREngine() { return m_tfrEngine; }
 
     private:
         RenderHooks() = default;
 
-        FrameGenEngine m_engine;
+        levi::framegen::FrameGenerator m_tfrEngine;
         FrameType m_lastFrameType = FrameType::REAL;
         bool m_installed = false;
     };
