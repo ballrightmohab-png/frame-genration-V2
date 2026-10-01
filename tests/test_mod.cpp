@@ -1,8 +1,10 @@
 #include <iostream>
 #include <cassert>
 #include <cmath>
+#include <chrono>
 #include "camera/CameraSmoothing.h"
 #include "framegen/TFRFrameGenerator.hpp"
+#include "framegen/FrameGenEngine.h"
 #include "math/MatrixMath.h"
 #include "gui/OverlayHUD.h"
 #include "pl/ModMenu.hpp"
@@ -83,6 +85,47 @@ void testTFRFrameGenerator() {
     std::cout << "  ✓ Levi TFR Frame Generator verified! Mid Pixel Value: " << (int)midPixelVal << std::endl;
 }
 
+void testFrameGenEngineReprojection() {
+    std::cout << "[Test] Running FrameGenEngine Reprojection tests & benchmark..." << std::endl;
+    LeviMod::FrameGenEngine engine;
+    int w = 256, h = 256;
+    engine.initialize(w, h);
+
+    std::vector<uint8_t> frameA(w * h * 4, 100);
+    std::vector<uint8_t> frameB(w * h * 4, 200);
+    std::vector<float> depthBuf(w * h, 0.5f);
+
+    LeviMod::Mat4 matA = LeviMod::Mat4::lookAt({0.0f, 0.0f, 5.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
+    LeviMod::Mat4 matB = LeviMod::Mat4::lookAt({0.5f, 0.0f, 5.0f}, {0.5f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
+
+    engine.pushNewFrame(frameA.data(), depthBuf.data(), matA);
+    engine.pushNewFrame(frameB.data(), depthBuf.data(), matB);
+
+    assert(engine.isReady());
+
+    std::vector<uint8_t> output;
+    bool success = engine.generateInterpolatedFrame(0.5f, output);
+    assert(success);
+    assert(output.size() == static_cast<size_t>(w * h * 4));
+
+    // Pixel midpoint check
+    uint8_t samplePixel = output[0];
+    assert(samplePixel >= 100 && samplePixel <= 200);
+
+    // Micro-benchmark across iterations
+    auto start = std::chrono::high_resolution_clock::now();
+    const int iterations = 100;
+    for (int i = 0; i < iterations; ++i) {
+        engine.generateInterpolatedFrame(0.5f, output);
+    }
+    auto end = std::chrono::high_resolution_clock::now();
+    double totalMs = std::chrono::duration<double, std::milli>(end - start).count();
+    double avgMs = totalMs / iterations;
+
+    std::cout << "  ✓ FrameGenEngine Reprojection verified! Avg frame gen time: "
+              << avgMs << " ms (" << (1000.0 / avgMs) << " FPS equivalent at " << w << "x" << h << ")" << std::endl;
+}
+
 void testModLifecycleAndRuntime() {
     std::cout << "[Test] Running Mod Lifecycle & Runtime Settings tests..." << std::endl;
     auto& mod = LeviMod::FrameGenMod::getInstance();
@@ -109,6 +152,7 @@ int main() {
     testCameraSmoothing();
     testMatrixMath();
     testTFRFrameGenerator();
+    testFrameGenEngineReprojection();
     testModLifecycleAndRuntime();
     std::cout << "=== ALL TESTS PASSED SUCCESSFULLY! ===" << std::endl;
     return 0;

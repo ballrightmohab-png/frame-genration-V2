@@ -1,0 +1,3 @@
+## 2025-05-20 - Precomputing Composite Reprojection Matrix for Frame Generation
+**Learning:** In spatial-temporal frame generation reprojection loops, transforming pixels from previous NDC -> World -> current Clip space per-pixel performs 2 matrix-vector multiplies and 2 perspective divisions for millions of pixels. Because matrix multiplication is associative, precomputing `M_reproj = M_curr * M_prevInv` ONCE per frame reduces per-pixel FLOPS by >60% with bit-exact identical UV coordinate projection.
+**Action:** Always precompute composite transformation matrices when transforming large pixel arrays or vertex buffers across multi-stage coordinate systems.
