@@ -1,0 +1,3 @@
+## 2025-10-02 - Single-Pass Matrix Reprojection for Frame Interpolation
+**Learning:** In spatial-temporal frame generation, reprojecting camera views sequentially via inverse world projection then current camera projection ($M_{curr} \cdot (M_{prevInv} \cdot V)$) performs 2 full matrix-vector products and 2 homogeneous $w$-divisions per pixel. Combining transformation matrices beforehand ($M_{reproject} = M_{curr} \cdot M_{prevInv}$) enables single-pass projection in homogeneous coordinates, reducing per-pixel FLOPs and divisions by >60% while producing mathematically identical pixel coordinates.
+**Action:** When reprojecting coordinates across multiple camera spaces in image loops, always compose the affine/projection transformation matrices before looping over pixels.

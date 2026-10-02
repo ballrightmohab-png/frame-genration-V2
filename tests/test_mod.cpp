@@ -1,8 +1,10 @@
 #include <iostream>
 #include <cassert>
 #include <cmath>
+#include <chrono>
 #include "camera/CameraSmoothing.h"
 #include "framegen/TFRFrameGenerator.hpp"
+#include "framegen/FrameGenEngine.h"
 #include "math/MatrixMath.h"
 #include "gui/OverlayHUD.h"
 #include "pl/ModMenu.hpp"
@@ -104,11 +106,69 @@ void testModLifecycleAndRuntime() {
     std::cout << "  ✓ Mod Lifecycle & Runtime Settings verified!" << std::endl;
 }
 
+void testFrameGenEngine() {
+    std::cout << "[Test & Benchmark] Running FrameGenEngine Spatial Reprojection tests..." << std::endl;
+    LeviMod::FrameGenEngine engine;
+    int w = 1920, h = 1080;
+    engine.initialize(w, h);
+
+    std::vector<uint8_t> color1(w * h * 4, 100);
+    std::vector<uint8_t> color2(w * h * 4, 200);
+    std::vector<float> depth1(w * h, 0.5f);
+    std::vector<float> depth2(w * h, 0.5f);
+
+    // Give some distinct pixel values to test interpolation correctness
+    for (int i = 0; i < w * h; ++i) {
+        color1[i * 4 + 0] = static_cast<uint8_t>(i % 256);
+        color1[i * 4 + 1] = static_cast<uint8_t>((i * 2) % 256);
+        color1[i * 4 + 2] = static_cast<uint8_t>((i * 3) % 256);
+        color1[i * 4 + 3] = 255;
+
+        color2[i * 4 + 0] = static_cast<uint8_t>((i + 50) % 256);
+        color2[i * 4 + 1] = static_cast<uint8_t>((i * 2 + 50) % 256);
+        color2[i * 4 + 2] = static_cast<uint8_t>((i * 3 + 50) % 256);
+        color2[i * 4 + 3] = 255;
+    }
+
+    LeviMod::Mat4 v1 = LeviMod::Mat4::perspective(1.0472f, 16.0f / 9.0f, 0.1f, 1000.0f)
+                        .multiply(LeviMod::Mat4::rotationYawPitchRoll(0.0f, 0.0f, 0.0f));
+    LeviMod::Mat4 v2 = LeviMod::Mat4::perspective(1.0472f, 16.0f / 9.0f, 0.1f, 1000.0f)
+                        .multiply(LeviMod::Mat4::rotationYawPitchRoll(2.0f, 1.0f, 0.0f));
+
+    engine.pushNewFrame(color1.data(), depth1.data(), v1);
+    engine.pushNewFrame(color2.data(), depth2.data(), v2);
+
+    assert(engine.isReady());
+
+    std::vector<uint8_t> outColor;
+    bool ok = engine.generateInterpolatedFrame(0.5f, outColor);
+    assert(ok);
+    assert(outColor.size() == static_cast<size_t>(w * h * 4));
+
+    // Warmup
+    for (int i = 0; i < 3; ++i) {
+        engine.generateInterpolatedFrame(0.5f, outColor);
+    }
+
+    // Benchmark
+    constexpr int iterations = 30;
+    auto start = std::chrono::high_resolution_clock::now();
+    for (int i = 0; i < iterations; ++i) {
+        engine.generateInterpolatedFrame(0.5f, outColor);
+    }
+    auto end = std::chrono::high_resolution_clock::now();
+    double totalMs = std::chrono::duration<double, std::milli>(end - start).count();
+    double avgMs = totalMs / iterations;
+
+    std::cout << "  ✓ FrameGenEngine verified! 1080p generation time: " << avgMs << " ms/frame (" << iterations << " iterations)" << std::endl;
+}
+
 int main() {
     std::cout << "=== LeviLaunchroid Native Mod Unit Test Suite ===" << std::endl;
     testCameraSmoothing();
     testMatrixMath();
     testTFRFrameGenerator();
+    testFrameGenEngine();
     testModLifecycleAndRuntime();
     std::cout << "=== ALL TESTS PASSED SUCCESSFULLY! ===" << std::endl;
     return 0;

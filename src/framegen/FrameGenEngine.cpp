@@ -80,15 +80,21 @@ namespace LeviMod {
             outputColorBuffer.resize(colorSize);
         }
 
-        Mat4 prevInvViewProj = m_prevFrame.viewProjMatrix.inverse();
-        const Mat4& currViewProj = m_currFrame.viewProjMatrix;
+        // Precompute combined reprojection matrix (Previous NDC -> Current NDC directly)
+        // avoiding double 4x4 matrix-vector multiplication and extra division per pixel
+        const Mat4 reprojectMatrix = m_currFrame.viewProjMatrix.multiply(m_prevFrame.viewProjMatrix.inverse());
 
         const uint8_t* prevColor = m_prevFrame.colorBuffer.data();
         const uint8_t* currColor = m_currFrame.colorBuffer.data();
         const float* depthBuf = m_currFrame.depthBuffer.data();
 
-        float invWidth = 1.0f / static_cast<float>(m_width);
-        float invHeight = 1.0f / static_cast<float>(m_height);
+        const float invWidth = 1.0f / static_cast<float>(m_width);
+        const float invHeight = 1.0f / static_cast<float>(m_height);
+        const float oneMinusT = 1.0f - t;
+        const int maxX = m_width - 1;
+        const int maxY = m_height - 1;
+        const float fWidth = static_cast<float>(m_width);
+        const float fHeight = static_cast<float>(m_height);
 
         // Perform parallelized/optimized spatial-temporal reprojection motion interpolation
         #pragma omp parallel for collapse(2) if(m_width * m_height >= 10000)
@@ -105,20 +111,12 @@ namespace LeviMod {
                 float ndcY = v * 2.0f - 1.0f;
                 float ndcZ = depth * 2.0f - 1.0f;
 
-                // Reproject to world space using inverse of previous camera view
-                float wP = prevInvViewProj.m[3] * ndcX + prevInvViewProj.m[7] * ndcY + prevInvViewProj.m[11] * ndcZ + prevInvViewProj.m[15];
-                if (std::abs(wP) < 1e-6f) wP = 1.0f;
-
-                float worldX = (prevInvViewProj.m[0] * ndcX + prevInvViewProj.m[4] * ndcY + prevInvViewProj.m[8] * ndcZ + prevInvViewProj.m[12]) / wP;
-                float worldY = (prevInvViewProj.m[1] * ndcX + prevInvViewProj.m[5] * ndcY + prevInvViewProj.m[9] * ndcZ + prevInvViewProj.m[13]) / wP;
-                float worldZ = (prevInvViewProj.m[2] * ndcX + prevInvViewProj.m[6] * ndcY + prevInvViewProj.m[10] * ndcZ + prevInvViewProj.m[14]) / wP;
-
-                // Project to current camera space
-                float cW = currViewProj.m[3] * worldX + currViewProj.m[7] * worldY + currViewProj.m[11] * worldZ + currViewProj.m[15];
+                // Combined direct reprojection from previous NDC to current NDC
+                float cW = reprojectMatrix.m[3] * ndcX + reprojectMatrix.m[7] * ndcY + reprojectMatrix.m[11] * ndcZ + reprojectMatrix.m[15];
                 if (std::abs(cW) < 1e-6f) cW = 1.0f;
 
-                float currNdcX = (currViewProj.m[0] * worldX + currViewProj.m[4] * worldY + currViewProj.m[8] * worldZ + currViewProj.m[12]) / cW;
-                float currNdcY = (currViewProj.m[1] * worldX + currViewProj.m[5] * worldY + currViewProj.m[9] * worldZ + currViewProj.m[13]) / cW;
+                float currNdcX = (reprojectMatrix.m[0] * ndcX + reprojectMatrix.m[4] * ndcY + reprojectMatrix.m[8] * ndcZ + reprojectMatrix.m[12]) / cW;
+                float currNdcY = (reprojectMatrix.m[1] * ndcX + reprojectMatrix.m[5] * ndcY + reprojectMatrix.m[9] * ndcZ + reprojectMatrix.m[13]) / cW;
 
                 float currU = currNdcX * 0.5f + 0.5f;
                 float currV = currNdcY * 0.5f + 0.5f;
@@ -130,22 +128,22 @@ namespace LeviMod {
                 float samplePrevU = std::clamp(u + motionU * t, 0.0f, 1.0f);
                 float samplePrevV = std::clamp(v + motionV * t, 0.0f, 1.0f);
 
-                float sampleCurrU = std::clamp(u - motionU * (1.0f - t), 0.0f, 1.0f);
-                float sampleCurrV = std::clamp(v - motionV * (1.0f - t), 0.0f, 1.0f);
+                float sampleCurrU = std::clamp(u - motionU * oneMinusT, 0.0f, 1.0f);
+                float sampleCurrV = std::clamp(v - motionV * oneMinusT, 0.0f, 1.0f);
 
-                int prevPxX = std::clamp(static_cast<int>(samplePrevU * m_width), 0, m_width - 1);
-                int prevPxY = std::clamp(static_cast<int>(samplePrevV * m_height), 0, m_height - 1);
+                int prevPxX = std::clamp(static_cast<int>(samplePrevU * fWidth), 0, maxX);
+                int prevPxY = std::clamp(static_cast<int>(samplePrevV * fHeight), 0, maxY);
                 int prevPxIdx = (prevPxY * m_width + prevPxX) * 4;
 
-                int currPxX = std::clamp(static_cast<int>(sampleCurrU * m_width), 0, m_width - 1);
-                int currPxY = std::clamp(static_cast<int>(sampleCurrV * m_height), 0, m_height - 1);
+                int currPxX = std::clamp(static_cast<int>(sampleCurrU * fWidth), 0, maxX);
+                int currPxY = std::clamp(static_cast<int>(sampleCurrV * fHeight), 0, maxY);
                 int currPxIdx = (currPxY * m_width + currPxX) * 4;
 
                 int outIdx = pixelIdx * 4;
                 for (int c = 0; c < 4; ++c) {
                     float valPrev = static_cast<float>(prevColor[prevPxIdx + c]);
                     float valCurr = static_cast<float>(currColor[currPxIdx + c]);
-                    float blended = valPrev * (1.0f - t) + valCurr * t;
+                    float blended = valPrev * oneMinusT + valCurr * t;
                     outputColorBuffer[outIdx + c] = static_cast<uint8_t>(std::clamp(blended, 0.0f, 255.0f));
                 }
             }
