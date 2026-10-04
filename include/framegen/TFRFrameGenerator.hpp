@@ -225,6 +225,28 @@ private:
             static_cast<size_t>(w) *
             static_cast<size_t>(h));
 
+        // BOLT OPTIMIZATION: Precompute luma buffers for both frame A and frame B.
+        // Previously, `luma(...)` recalculated RGB->Luma weights and clamped coordinates for every
+        // candidate offset in the search radius (up to 289 times per pixel sample!).
+        // Precomputing luma maps turns redundant computations into direct O(1) buffer lookups.
+        const size_t totalPixels = static_cast<size_t>(w) * static_cast<size_t>(h);
+        std::vector<float> lumaA(totalPixels);
+        std::vector<float> lumaB(totalPixels);
+
+        for (size_t i = 0; i < totalPixels; ++i) {
+            const size_t rgbaIdx = i * 4;
+
+            const float rA = static_cast<float>(a.rgba[rgbaIdx + 0]);
+            const float gA = static_cast<float>(a.rgba[rgbaIdx + 1]);
+            const float bA = static_cast<float>(a.rgba[rgbaIdx + 2]);
+            lumaA[i] = 0.2126f * rA + 0.7152f * gA + 0.0722f * bA;
+
+            const float rB = static_cast<float>(b.rgba[rgbaIdx + 0]);
+            const float gB = static_cast<float>(b.rgba[rgbaIdx + 1]);
+            const float bB = static_cast<float>(b.rgba[rgbaIdx + 2]);
+            lumaB[i] = 0.2126f * rB + 0.7152f * gB + 0.0722f * bB;
+        }
+
         const int bs = blockSize_;
 
         for (int by = 0; by < h; by += bs) {
@@ -259,6 +281,9 @@ private:
                             if (yy < 0 || yy >= h)
                                 continue;
 
+                            const size_t rowIdxA = static_cast<size_t>(y) * w;
+                            const size_t rowIdxB = static_cast<size_t>(yy) * w;
+
                             for (int x = bx;
                                  x < xEnd;
                                  x += 2) {
@@ -268,14 +293,11 @@ private:
                                 if (xx < 0 || xx >= w)
                                     continue;
 
-                                const float lumaA =
-                                    luma(a, x, y);
-
-                                const float lumaB =
-                                    luma(b, xx, yy);
+                                const float lumaValA = lumaA[rowIdxA + x];
+                                const float lumaValB = lumaB[rowIdxB + xx];
 
                                 error +=
-                                    std::abs(lumaA - lumaB);
+                                    std::abs(lumaValA - lumaValB);
 
                                 ++samples;
                             }
