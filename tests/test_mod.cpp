@@ -2,6 +2,7 @@
 #include <cassert>
 #include <cmath>
 #include "camera/CameraSmoothing.h"
+#include "framegen/FrameGenEngine.h"
 #include "framegen/TFRFrameGenerator.hpp"
 #include "math/MatrixMath.h"
 #include "gui/OverlayHUD.h"
@@ -104,11 +105,44 @@ void testModLifecycleAndRuntime() {
     std::cout << "  ✓ Mod Lifecycle & Runtime Settings verified!" << std::endl;
 }
 
+void testFrameGenEngineReprojection() {
+    std::cout << "[Test] Running FrameGenEngine Spatial-Temporal Reprojection tests..." << std::endl;
+    LeviMod::FrameGenEngine engine;
+    int w = 32, h = 32;
+    engine.initialize(w, h);
+
+    std::vector<uint8_t> frame1Color(w * h * 4, 100);
+    std::vector<float> frame1Depth(w * h, 0.5f);
+    LeviMod::Mat4 viewProj1 = LeviMod::Mat4::identity();
+
+    engine.pushNewFrame(frame1Color.data(), frame1Depth.data(), viewProj1);
+    assert(!engine.isReady());
+
+    std::vector<uint8_t> frame2Color(w * h * 4, 200);
+    std::vector<float> frame2Depth(w * h, 0.5f);
+    LeviMod::Mat4 viewProj2 = LeviMod::Mat4::rotationYawPitchRoll(5.0f, 0.0f, 0.0f);
+
+    engine.pushNewFrame(frame2Color.data(), frame2Depth.data(), viewProj2);
+    assert(engine.isReady());
+
+    std::vector<uint8_t> outputColor;
+    bool result = engine.generateInterpolatedFrame(0.5f, outputColor);
+    assert(result);
+    assert(outputColor.size() == static_cast<size_t>(w * h * 4));
+
+    // Verify interpolated frame pixels are valid
+    uint8_t pixelVal = outputColor[0];
+    assert(pixelVal >= 100 && pixelVal <= 200);
+
+    std::cout << "  ✓ FrameGenEngine Reprojection verified! Sample Pixel: " << static_cast<int>(pixelVal) << std::endl;
+}
+
 int main() {
     std::cout << "=== LeviLaunchroid Native Mod Unit Test Suite ===" << std::endl;
     testCameraSmoothing();
     testMatrixMath();
     testTFRFrameGenerator();
+    testFrameGenEngineReprojection();
     testModLifecycleAndRuntime();
     std::cout << "=== ALL TESTS PASSED SUCCESSFULLY! ===" << std::endl;
     return 0;
