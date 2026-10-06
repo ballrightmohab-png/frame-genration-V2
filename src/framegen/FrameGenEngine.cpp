@@ -83,6 +83,10 @@ namespace LeviMod {
         Mat4 prevInvViewProj = m_prevFrame.viewProjMatrix.inverse();
         const Mat4& currViewProj = m_currFrame.viewProjMatrix;
 
+        // Optimization: Pre-multiply currViewProj * prevInvViewProj to create a single reprojection matrix.
+        // This eliminates one matrix transform, world-space coordinate reconstruction, and division per pixel.
+        Mat4 reprojMat = currViewProj.multiply(prevInvViewProj);
+
         const uint8_t* prevColor = m_prevFrame.colorBuffer.data();
         const uint8_t* currColor = m_currFrame.colorBuffer.data();
         const float* depthBuf = m_currFrame.depthBuffer.data();
@@ -105,20 +109,12 @@ namespace LeviMod {
                 float ndcY = v * 2.0f - 1.0f;
                 float ndcZ = depth * 2.0f - 1.0f;
 
-                // Reproject to world space using inverse of previous camera view
-                float wP = prevInvViewProj.m[3] * ndcX + prevInvViewProj.m[7] * ndcY + prevInvViewProj.m[11] * ndcZ + prevInvViewProj.m[15];
-                if (std::abs(wP) < 1e-6f) wP = 1.0f;
+                // Directly reproject NDC from previous frame to current frame NDC using pre-multiplied reprojMat
+                float clipW = reprojMat.m[3] * ndcX + reprojMat.m[7] * ndcY + reprojMat.m[11] * ndcZ + reprojMat.m[15];
+                if (std::abs(clipW) < 1e-6f) clipW = 1.0f;
 
-                float worldX = (prevInvViewProj.m[0] * ndcX + prevInvViewProj.m[4] * ndcY + prevInvViewProj.m[8] * ndcZ + prevInvViewProj.m[12]) / wP;
-                float worldY = (prevInvViewProj.m[1] * ndcX + prevInvViewProj.m[5] * ndcY + prevInvViewProj.m[9] * ndcZ + prevInvViewProj.m[13]) / wP;
-                float worldZ = (prevInvViewProj.m[2] * ndcX + prevInvViewProj.m[6] * ndcY + prevInvViewProj.m[10] * ndcZ + prevInvViewProj.m[14]) / wP;
-
-                // Project to current camera space
-                float cW = currViewProj.m[3] * worldX + currViewProj.m[7] * worldY + currViewProj.m[11] * worldZ + currViewProj.m[15];
-                if (std::abs(cW) < 1e-6f) cW = 1.0f;
-
-                float currNdcX = (currViewProj.m[0] * worldX + currViewProj.m[4] * worldY + currViewProj.m[8] * worldZ + currViewProj.m[12]) / cW;
-                float currNdcY = (currViewProj.m[1] * worldX + currViewProj.m[5] * worldY + currViewProj.m[9] * worldZ + currViewProj.m[13]) / cW;
+                float currNdcX = (reprojMat.m[0] * ndcX + reprojMat.m[4] * ndcY + reprojMat.m[8] * ndcZ + reprojMat.m[12]) / clipW;
+                float currNdcY = (reprojMat.m[1] * ndcX + reprojMat.m[5] * ndcY + reprojMat.m[9] * ndcZ + reprojMat.m[13]) / clipW;
 
                 float currU = currNdcX * 0.5f + 0.5f;
                 float currV = currNdcY * 0.5f + 0.5f;
