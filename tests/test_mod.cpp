@@ -1,6 +1,7 @@
 #include <iostream>
 #include <cassert>
 #include <cmath>
+#include <chrono>
 #include "camera/CameraSmoothing.h"
 #include "framegen/TFRFrameGenerator.hpp"
 #include "math/MatrixMath.h"
@@ -80,7 +81,30 @@ void testTFRFrameGenerator() {
     assert(fg.hasPrevious());
     assert(!fg.hasCurrent());
 
-    std::cout << "  ✓ Levi TFR Frame Generator verified! Mid Pixel Value: " << (int)midPixelVal << std::endl;
+    // Benchmark frame generation with larger frame size (256x256)
+    int benchW = 256, benchH = 256;
+    levi::framegen::Frame bf1, bf2;
+    bf1.resize(benchW, benchH);
+    bf2.resize(benchW, benchH);
+    for (size_t i = 0; i < bf1.rgba.size(); ++i) {
+        bf1.rgba[i] = static_cast<uint8_t>(i % 256);
+        bf2.rgba[i] = static_cast<uint8_t>((i + 16) % 256);
+    }
+
+    levi::framegen::FrameGenerator benchFg;
+    benchFg.setMode(levi::framegen::FrameGenerator::Mode::OneX);
+    benchFg.submitRealFrame(bf1);
+    benchFg.submitRealFrame(bf2);
+
+    auto start = std::chrono::high_resolution_clock::now();
+    for (int iter = 0; iter < 5; ++iter) {
+        benchFg.generate(0.5f);
+    }
+    auto end = std::chrono::high_resolution_clock::now();
+    double durationMs = std::chrono::duration<double, std::milli>(end - start).count() / 5.0;
+
+    std::cout << "  ✓ Levi TFR Frame Generator verified! Mid Pixel Value: " << (int)midPixelVal
+              << " | Benchmark 256x256 gen time: " << durationMs << " ms" << std::endl;
 }
 
 void testModLifecycleAndRuntime() {

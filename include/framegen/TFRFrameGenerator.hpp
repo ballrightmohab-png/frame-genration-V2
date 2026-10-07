@@ -225,6 +225,22 @@ private:
             static_cast<size_t>(w) *
             static_cast<size_t>(h));
 
+        // Pre-compute full-frame luma buffers for frame A and frame B once
+        // to eliminate redundant RGB-to-luma conversions during motion vector search.
+        const size_t totalPixels = static_cast<size_t>(w) * static_cast<size_t>(h);
+        std::vector<float> lumaA(totalPixels);
+        std::vector<float> lumaB(totalPixels);
+
+        for (size_t i = 0; i < totalPixels; ++i) {
+            const size_t rgbaIdx = i * 4;
+            lumaA[i] = 0.2126f * a.rgba[rgbaIdx + 0] +
+                       0.7152f * a.rgba[rgbaIdx + 1] +
+                       0.0722f * a.rgba[rgbaIdx + 2];
+            lumaB[i] = 0.2126f * b.rgba[rgbaIdx + 0] +
+                       0.7152f * b.rgba[rgbaIdx + 1] +
+                       0.0722f * b.rgba[rgbaIdx + 2];
+        }
+
         const int bs = blockSize_;
 
         for (int by = 0; by < h; by += bs) {
@@ -259,6 +275,9 @@ private:
                             if (yy < 0 || yy >= h)
                                 continue;
 
+                            const size_t rowA = static_cast<size_t>(y) * w;
+                            const size_t rowB = static_cast<size_t>(yy) * w;
+
                             for (int x = bx;
                                  x < xEnd;
                                  x += 2) {
@@ -268,14 +287,11 @@ private:
                                 if (xx < 0 || xx >= w)
                                     continue;
 
-                                const float lumaA =
-                                    luma(a, x, y);
-
-                                const float lumaB =
-                                    luma(b, xx, yy);
+                                const float lumaValA = lumaA[rowA + static_cast<size_t>(x)];
+                                const float lumaValB = lumaB[rowB + static_cast<size_t>(xx)];
 
                                 error +=
-                                    std::abs(lumaA - lumaB);
+                                    std::abs(lumaValA - lumaValB);
 
                                 ++samples;
                             }

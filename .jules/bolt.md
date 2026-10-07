@@ -1,0 +1,3 @@
+## 2025-05-20 - Motion Estimation Precomputed Luma Optimization
+**Learning:** Calling inline RGB-to-luma conversion with floating-point weightings and pixel bounds checks inside block-matching search loops (evaluating 289 candidate vectors per block) causes redundant calculations proportional to `(searchRadius * 2 + 1)^2`. Precomputing luma values into a single contiguous `std::vector<float>` per frame reduces luma evaluation from O(W * H * candidates) to O(W * H).
+**Action:** In frame generation or image processing pipelines, always precompute derived scalar fields (like luma or gradients) before running kernel or block-matching searches.
