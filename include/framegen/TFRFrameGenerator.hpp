@@ -220,63 +220,64 @@ private:
     {
         const int w = a.width;
         const int h = a.height;
+        const size_t numPixels = static_cast<size_t>(w) * static_cast<size_t>(h);
 
-        std::vector<Motion> result(
-            static_cast<size_t>(w) *
-            static_cast<size_t>(h));
+        std::vector<Motion> result(numPixels);
+
+        // Optimization: Precompute luma buffers for frames 'a' and 'b' to eliminate per-pixel RGB -> Luma computation in block search loop.
+        std::vector<float> lumaA(numPixels);
+        std::vector<float> lumaB(numPixels);
+
+        #pragma omp parallel for schedule(static) if(numPixels >= 4096)
+        for (int y = 0; y < h; ++y) {
+            for (int x = 0; x < w; ++x) {
+                const size_t idx = static_cast<size_t>(y) * w + x;
+                const size_t imgIdx = idx * 4;
+                lumaA[idx] = 0.2126f * a.rgba[imgIdx + 0] + 0.7152f * a.rgba[imgIdx + 1] + 0.0722f * a.rgba[imgIdx + 2];
+                lumaB[idx] = 0.2126f * b.rgba[imgIdx + 0] + 0.7152f * b.rgba[imgIdx + 1] + 0.0722f * b.rgba[imgIdx + 2];
+            }
+        }
 
         const int bs = blockSize_;
+        const int numBlocksY = (h + bs - 1) / bs;
+        const int numBlocksX = (w + bs - 1) / bs;
 
-        for (int by = 0; by < h; by += bs) {
-            for (int bx = 0; bx < w; bx += bs) {
+        // Parallelize block motion vector search over 2D grid
+        #pragma omp parallel for collapse(2) schedule(dynamic) if(numBlocksY * numBlocksX >= 16)
+        for (int byIdx = 0; byIdx < numBlocksY; ++byIdx) {
+            for (int bxIdx = 0; bxIdx < numBlocksX; ++bxIdx) {
+                const int by = byIdx * bs;
+                const int bx = bxIdx * bs;
 
-                float bestError =
-                    std::numeric_limits<float>::max();
-
+                float bestError = std::numeric_limits<float>::max();
                 int bestDx = 0;
                 int bestDy = 0;
 
-                for (int dy = -searchRadius_;
-                     dy <= searchRadius_; ++dy) {
-
-                    for (int dx = -searchRadius_;
-                         dx <= searchRadius_; ++dx) {
-
+                for (int dy = -searchRadius_; dy <= searchRadius_; ++dy) {
+                    for (int dx = -searchRadius_; dx <= searchRadius_; ++dx) {
                         float error = 0.0f;
                         int samples = 0;
 
-                        const int yEnd =
-                            std::min(by + bs, h);
-                        const int xEnd =
-                            std::min(bx + bs, w);
+                        const int yEnd = std::min(by + bs, h);
+                        const int xEnd = std::min(bx + bs, w);
 
-                        for (int y = by;
-                             y < yEnd;
-                             y += 2) {
-
+                        for (int y = by; y < yEnd; y += 2) {
                             const int yy = y + dy;
-
                             if (yy < 0 || yy >= h)
                                 continue;
 
-                            for (int x = bx;
-                                 x < xEnd;
-                                 x += 2) {
+                            const size_t rowA = static_cast<size_t>(y) * w;
+                            const size_t rowB = static_cast<size_t>(yy) * w;
 
+                            for (int x = bx; x < xEnd; x += 2) {
                                 const int xx = x + dx;
-
                                 if (xx < 0 || xx >= w)
                                     continue;
 
-                                const float lumaA =
-                                    luma(a, x, y);
+                                const float valA = lumaA[rowA + x];
+                                const float valB = lumaB[rowB + xx];
 
-                                const float lumaB =
-                                    luma(b, xx, yy);
-
-                                error +=
-                                    std::abs(lumaA - lumaB);
-
+                                error += std::abs(valA - valB);
                                 ++samples;
                             }
                         }
@@ -292,20 +293,18 @@ private:
                     }
                 }
 
-                for (int y = by;
-                     y < std::min(by + bs, h);
-                     ++y) {
+                const Motion blockMotion{
+                    static_cast<float>(bestDx),
+                    static_cast<float>(bestDy)
+                };
 
-                    for (int x = bx;
-                         x < std::min(bx + bs, w);
-                         ++x) {
+                const int yLimit = std::min(by + bs, h);
+                const int xLimit = std::min(bx + bs, w);
 
-                        result[
-                            static_cast<size_t>(y) * w + x
-                        ] = Motion{
-                            static_cast<float>(bestDx),
-                            static_cast<float>(bestDy)
-                        };
+                for (int y = by; y < yLimit; ++y) {
+                    const size_t rowIdx = static_cast<size_t>(y) * w;
+                    for (int x = bx; x < xLimit; ++x) {
+                        result[rowIdx + x] = blockMotion;
                     }
                 }
             }
