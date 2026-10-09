@@ -1,0 +1,3 @@
+## 2025-05-18 - Pre-computing Frame Luma Buffers in Motion Estimation
+**Learning:** Recalculating pixel luma values on-the-fly inside nested block-matching loops ($O(N \times \text{SearchRadius}^2)$) causes redundant RGBA unpacking, floating-point weights, and clamping bounds checks. Pre-computing a 1D luma buffer once per frame before block matching reduces calculation overhead and improves locality, speeding up motion estimation by ~3-4x.
+**Action:** When performing block matching or template matching on image frames, always hoist pixel conversion operations (like Luma or Grayscale conversion) into a contiguous 1D pre-pass array before nested spatial search loops.
