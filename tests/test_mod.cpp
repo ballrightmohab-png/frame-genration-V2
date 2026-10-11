@@ -2,6 +2,7 @@
 #include <cassert>
 #include <cmath>
 #include "camera/CameraSmoothing.h"
+#include "framegen/FrameGenEngine.h"
 #include "framegen/TFRFrameGenerator.hpp"
 #include "math/MatrixMath.h"
 #include "gui/OverlayHUD.h"
@@ -104,11 +105,41 @@ void testModLifecycleAndRuntime() {
     std::cout << "  ✓ Mod Lifecycle & Runtime Settings verified!" << std::endl;
 }
 
+void testFrameGenEngine() {
+    std::cout << "[Test] Running FrameGen Engine Interpolation tests..." << std::endl;
+    LeviMod::FrameGenEngine engine;
+    int w = 32, h = 32;
+    engine.initialize(w, h);
+
+    std::vector<uint8_t> color1(w * h * 4, 100);
+    std::vector<uint8_t> color2(w * h * 4, 200);
+    std::vector<float> depth(w * h, 0.5f);
+
+    LeviMod::Mat4 mat1 = LeviMod::Mat4::identity();
+    LeviMod::Mat4 mat2 = LeviMod::Mat4::identity();
+
+    engine.pushNewFrame(color1.data(), depth.data(), mat1);
+    engine.pushNewFrame(color2.data(), depth.data(), mat2);
+
+    assert(engine.isReady());
+
+    std::vector<uint8_t> output;
+    bool result = engine.generateInterpolatedFrame(0.5f, output);
+    assert(result);
+    assert(output.size() == static_cast<size_t>(w * h * 4));
+
+    // Blended pixel value check: 100 * 0.5 + 200 * 0.5 = 150
+    assert(output[0] == 150);
+
+    std::cout << "  ✓ FrameGen Engine Interpolation verified! Pixel value: " << (int)output[0] << std::endl;
+}
+
 int main() {
     std::cout << "=== LeviLaunchroid Native Mod Unit Test Suite ===" << std::endl;
     testCameraSmoothing();
     testMatrixMath();
     testTFRFrameGenerator();
+    testFrameGenEngine();
     testModLifecycleAndRuntime();
     std::cout << "=== ALL TESTS PASSED SUCCESSFULLY! ===" << std::endl;
     return 0;
