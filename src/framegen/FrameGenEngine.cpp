@@ -80,8 +80,15 @@ namespace LeviMod {
             outputColorBuffer.resize(colorSize);
         }
 
-        Mat4 prevInvViewProj = m_prevFrame.viewProjMatrix.inverse();
-        const Mat4& currViewProj = m_currFrame.viewProjMatrix;
+        // Pre-compute combined reprojection matrix (currViewProj * prevInvViewProj) once per frame.
+        // Transforming NDC directly to NDC saves 1 matrix-vector transform, 1 check, and 1 divide per pixel.
+        Mat4 reprojMatrix = m_currFrame.viewProjMatrix.multiply(m_prevFrame.viewProjMatrix.inverse());
+
+        // Cache matrix elements in local stack registers to facilitate SIMD vectorization
+        const float rm0 = reprojMatrix.m[0],  rm1 = reprojMatrix.m[1],  rm2 = reprojMatrix.m[2],  rm3 = reprojMatrix.m[3];
+        const float rm4 = reprojMatrix.m[4],  rm5 = reprojMatrix.m[5],  rm6 = reprojMatrix.m[6],  rm7 = reprojMatrix.m[7];
+        const float rm8 = reprojMatrix.m[8],  rm9 = reprojMatrix.m[9],  rm10 = reprojMatrix.m[10], rm11 = reprojMatrix.m[11];
+        const float rm12 = reprojMatrix.m[12], rm13 = reprojMatrix.m[13], rm14 = reprojMatrix.m[14], rm15 = reprojMatrix.m[15];
 
         const uint8_t* prevColor = m_prevFrame.colorBuffer.data();
         const uint8_t* currColor = m_currFrame.colorBuffer.data();
@@ -105,20 +112,12 @@ namespace LeviMod {
                 float ndcY = v * 2.0f - 1.0f;
                 float ndcZ = depth * 2.0f - 1.0f;
 
-                // Reproject to world space using inverse of previous camera view
-                float wP = prevInvViewProj.m[3] * ndcX + prevInvViewProj.m[7] * ndcY + prevInvViewProj.m[11] * ndcZ + prevInvViewProj.m[15];
-                if (std::abs(wP) < 1e-6f) wP = 1.0f;
+                // Directly reproject NDC from previous frame to current frame NDC using pre-composed reprojection matrix
+                float rW = rm3 * ndcX + rm7 * ndcY + rm11 * ndcZ + rm15;
+                if (std::abs(rW) < 1e-6f) rW = 1.0f;
 
-                float worldX = (prevInvViewProj.m[0] * ndcX + prevInvViewProj.m[4] * ndcY + prevInvViewProj.m[8] * ndcZ + prevInvViewProj.m[12]) / wP;
-                float worldY = (prevInvViewProj.m[1] * ndcX + prevInvViewProj.m[5] * ndcY + prevInvViewProj.m[9] * ndcZ + prevInvViewProj.m[13]) / wP;
-                float worldZ = (prevInvViewProj.m[2] * ndcX + prevInvViewProj.m[6] * ndcY + prevInvViewProj.m[10] * ndcZ + prevInvViewProj.m[14]) / wP;
-
-                // Project to current camera space
-                float cW = currViewProj.m[3] * worldX + currViewProj.m[7] * worldY + currViewProj.m[11] * worldZ + currViewProj.m[15];
-                if (std::abs(cW) < 1e-6f) cW = 1.0f;
-
-                float currNdcX = (currViewProj.m[0] * worldX + currViewProj.m[4] * worldY + currViewProj.m[8] * worldZ + currViewProj.m[12]) / cW;
-                float currNdcY = (currViewProj.m[1] * worldX + currViewProj.m[5] * worldY + currViewProj.m[9] * worldZ + currViewProj.m[13]) / cW;
+                float currNdcX = (rm0 * ndcX + rm4 * ndcY + rm8 * ndcZ + rm12) / rW;
+                float currNdcY = (rm1 * ndcX + rm5 * ndcY + rm9 * ndcZ + rm13) / rW;
 
                 float currU = currNdcX * 0.5f + 0.5f;
                 float currV = currNdcY * 0.5f + 0.5f;
