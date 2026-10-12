@@ -90,28 +90,39 @@ namespace LeviMod {
         float invWidth = 1.0f / static_cast<float>(m_width);
         float invHeight = 1.0f / static_cast<float>(m_height);
 
-        // Perform parallelized/optimized spatial-temporal reprojection motion interpolation
-        #pragma omp parallel for collapse(2) if(m_width * m_height >= 10000)
+        // Perform parallelized/optimized spatial-temporal reprojection motion interpolation.
+        // Optimization: Hoist row-invariant calculations (v, ndcY, row offset, and row matrix products)
+        // out of the inner loop (x) to save millions of redundant floating-point and integer operations per frame.
+        #pragma omp parallel for if(m_width * m_height >= 10000)
         for (int y = 0; y < m_height; ++y) {
+            float v = (static_cast<float>(y) + 0.5f) * invHeight;
+            float ndcY = v * 2.0f - 1.0f;
+
+            // Precompute row-invariant terms for world space reprojection
+            float row_wP = prevInvViewProj.m[7] * ndcY + prevInvViewProj.m[15];
+            float row_worldX = prevInvViewProj.m[4] * ndcY + prevInvViewProj.m[12];
+            float row_worldY = prevInvViewProj.m[5] * ndcY + prevInvViewProj.m[13];
+            float row_worldZ = prevInvViewProj.m[6] * ndcY + prevInvViewProj.m[14];
+
+            int rowOffset = y * m_width;
+
             for (int x = 0; x < m_width; ++x) {
-                float v = (static_cast<float>(y) + 0.5f) * invHeight;
                 float u = (static_cast<float>(x) + 0.5f) * invWidth;
-                int pixelIdx = y * m_width + x;
+                int pixelIdx = rowOffset + x;
 
                 float depth = depthBuf[pixelIdx];
 
                 // Reconstruct pixel NDC coordinates
                 float ndcX = u * 2.0f - 1.0f;
-                float ndcY = v * 2.0f - 1.0f;
                 float ndcZ = depth * 2.0f - 1.0f;
 
                 // Reproject to world space using inverse of previous camera view
-                float wP = prevInvViewProj.m[3] * ndcX + prevInvViewProj.m[7] * ndcY + prevInvViewProj.m[11] * ndcZ + prevInvViewProj.m[15];
+                float wP = prevInvViewProj.m[3] * ndcX + prevInvViewProj.m[11] * ndcZ + row_wP;
                 if (std::abs(wP) < 1e-6f) wP = 1.0f;
 
-                float worldX = (prevInvViewProj.m[0] * ndcX + prevInvViewProj.m[4] * ndcY + prevInvViewProj.m[8] * ndcZ + prevInvViewProj.m[12]) / wP;
-                float worldY = (prevInvViewProj.m[1] * ndcX + prevInvViewProj.m[5] * ndcY + prevInvViewProj.m[9] * ndcZ + prevInvViewProj.m[13]) / wP;
-                float worldZ = (prevInvViewProj.m[2] * ndcX + prevInvViewProj.m[6] * ndcY + prevInvViewProj.m[10] * ndcZ + prevInvViewProj.m[14]) / wP;
+                float worldX = (prevInvViewProj.m[0] * ndcX + prevInvViewProj.m[8] * ndcZ + row_worldX) / wP;
+                float worldY = (prevInvViewProj.m[1] * ndcX + prevInvViewProj.m[9] * ndcZ + row_worldY) / wP;
+                float worldZ = (prevInvViewProj.m[2] * ndcX + prevInvViewProj.m[10] * ndcZ + row_worldZ) / wP;
 
                 // Project to current camera space
                 float cW = currViewProj.m[3] * worldX + currViewProj.m[7] * worldY + currViewProj.m[11] * worldZ + currViewProj.m[15];
