@@ -90,6 +90,11 @@ namespace LeviMod {
         float invWidth = 1.0f / static_cast<float>(m_width);
         float invHeight = 1.0f / static_cast<float>(m_height);
 
+        // Bolt optimization: Hoist loop-invariant frame variables outside per-pixel loops
+        const float oneMinusT = 1.0f - t;
+        const float fw = static_cast<float>(m_width);
+        const float fh = static_cast<float>(m_height);
+
         // Perform parallelized/optimized spatial-temporal reprojection motion interpolation
         #pragma omp parallel for collapse(2) if(m_width * m_height >= 10000)
         for (int y = 0; y < m_height; ++y) {
@@ -109,16 +114,19 @@ namespace LeviMod {
                 float wP = prevInvViewProj.m[3] * ndcX + prevInvViewProj.m[7] * ndcY + prevInvViewProj.m[11] * ndcZ + prevInvViewProj.m[15];
                 if (std::abs(wP) < 1e-6f) wP = 1.0f;
 
-                float worldX = (prevInvViewProj.m[0] * ndcX + prevInvViewProj.m[4] * ndcY + prevInvViewProj.m[8] * ndcZ + prevInvViewProj.m[12]) / wP;
-                float worldY = (prevInvViewProj.m[1] * ndcX + prevInvViewProj.m[5] * ndcY + prevInvViewProj.m[9] * ndcZ + prevInvViewProj.m[13]) / wP;
-                float worldZ = (prevInvViewProj.m[2] * ndcX + prevInvViewProj.m[6] * ndcY + prevInvViewProj.m[10] * ndcZ + prevInvViewProj.m[14]) / wP;
+                // Bolt optimization: Multiply by reciprocal instead of multiple floating point divisions
+                float invWP = 1.0f / wP;
+                float worldX = (prevInvViewProj.m[0] * ndcX + prevInvViewProj.m[4] * ndcY + prevInvViewProj.m[8] * ndcZ + prevInvViewProj.m[12]) * invWP;
+                float worldY = (prevInvViewProj.m[1] * ndcX + prevInvViewProj.m[5] * ndcY + prevInvViewProj.m[9] * ndcZ + prevInvViewProj.m[13]) * invWP;
+                float worldZ = (prevInvViewProj.m[2] * ndcX + prevInvViewProj.m[6] * ndcY + prevInvViewProj.m[10] * ndcZ + prevInvViewProj.m[14]) * invWP;
 
                 // Project to current camera space
                 float cW = currViewProj.m[3] * worldX + currViewProj.m[7] * worldY + currViewProj.m[11] * worldZ + currViewProj.m[15];
                 if (std::abs(cW) < 1e-6f) cW = 1.0f;
 
-                float currNdcX = (currViewProj.m[0] * worldX + currViewProj.m[4] * worldY + currViewProj.m[8] * worldZ + currViewProj.m[12]) / cW;
-                float currNdcY = (currViewProj.m[1] * worldX + currViewProj.m[5] * worldY + currViewProj.m[9] * worldZ + currViewProj.m[13]) / cW;
+                float invCW = 1.0f / cW;
+                float currNdcX = (currViewProj.m[0] * worldX + currViewProj.m[4] * worldY + currViewProj.m[8] * worldZ + currViewProj.m[12]) * invCW;
+                float currNdcY = (currViewProj.m[1] * worldX + currViewProj.m[5] * worldY + currViewProj.m[9] * worldZ + currViewProj.m[13]) * invCW;
 
                 float currU = currNdcX * 0.5f + 0.5f;
                 float currV = currNdcY * 0.5f + 0.5f;
@@ -126,27 +134,21 @@ namespace LeviMod {
                 float motionU = currU - u;
                 float motionV = currV - v;
 
-                // Warped sample locations
-                float samplePrevU = std::clamp(u + motionU * t, 0.0f, 1.0f);
-                float samplePrevV = std::clamp(v + motionV * t, 0.0f, 1.0f);
-
-                float sampleCurrU = std::clamp(u - motionU * (1.0f - t), 0.0f, 1.0f);
-                float sampleCurrV = std::clamp(v - motionV * (1.0f - t), 0.0f, 1.0f);
-
-                int prevPxX = std::clamp(static_cast<int>(samplePrevU * m_width), 0, m_width - 1);
-                int prevPxY = std::clamp(static_cast<int>(samplePrevV * m_height), 0, m_height - 1);
+                // Bolt optimization: Directly compute warped pixel index, eliminating intermediate U/V clamping & redundant multiplications
+                int prevPxX = std::clamp(static_cast<int>((u + motionU * t) * fw), 0, m_width - 1);
+                int prevPxY = std::clamp(static_cast<int>((v + motionV * t) * fh), 0, m_height - 1);
                 int prevPxIdx = (prevPxY * m_width + prevPxX) * 4;
 
-                int currPxX = std::clamp(static_cast<int>(sampleCurrU * m_width), 0, m_width - 1);
-                int currPxY = std::clamp(static_cast<int>(sampleCurrV * m_height), 0, m_height - 1);
+                int currPxX = std::clamp(static_cast<int>((u - motionU * oneMinusT) * fw), 0, m_width - 1);
+                int currPxY = std::clamp(static_cast<int>((v - motionV * oneMinusT) * fh), 0, m_height - 1);
                 int currPxIdx = (currPxY * m_width + currPxX) * 4;
 
                 int outIdx = pixelIdx * 4;
                 for (int c = 0; c < 4; ++c) {
                     float valPrev = static_cast<float>(prevColor[prevPxIdx + c]);
                     float valCurr = static_cast<float>(currColor[currPxIdx + c]);
-                    float blended = valPrev * (1.0f - t) + valCurr * t;
-                    outputColorBuffer[outIdx + c] = static_cast<uint8_t>(std::clamp(blended, 0.0f, 255.0f));
+                    float blended = valPrev * oneMinusT + valCurr * t;
+                    outputColorBuffer[outIdx + c] = static_cast<uint8_t>(blended + 0.5f);
                 }
             }
         }
